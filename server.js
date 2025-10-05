@@ -970,7 +970,7 @@ IMPORTANTE:
 
     req.on('end', async () => {
       try {
-        const { message, lat, lon, date, hour } = JSON.parse(body);
+        const { message } = JSON.parse(body);
 
         if (!message) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -981,176 +981,160 @@ IMPORTANTE:
         console.log(`\n🤖 === CHATBOT: Nueva consulta ===`);
         console.log(`💬 Mensaje: ${message}`);
 
-        // Si el usuario proporciona coordenadas, obtener datos climáticos
-        let weatherContext = null;
-        let validationResult = null;
+        // Usar OpenAI para extraer ubicación, fecha y hora del mensaje
+        console.log(`🔍 Analizando mensaje para extraer ubicación, fecha y hora...`);
 
-        if (lat && lon && date) {
-          console.log(`📍 Obteniendo datos climáticos para lat=${lat}, lon=${lon}, date=${date}`);
+        const extractionPrompt = `Analiza este mensaje del usuario y extrae la siguiente información:
 
-          const currentYear = new Date().getFullYear();
-          const startYear = currentYear - 30;
+MENSAJE: "${message}"
 
-          const data = await getNasaPowerDailyData(
-            parseFloat(lat),
-            parseFloat(lon),
-            `${startYear}0101`,
-            `${currentYear}1231`
-          );
+FECHA DE HOY: 5 de octubre de 2025
 
-          const elevation = await getElevation(parseFloat(lat), parseFloat(lon));
-          const analysis = calculateDailyProbabilities(data, date, elevation);
+Extrae:
+1. UBICACIÓN (ciudad, país o región mencionada)
+2. FECHA (si menciona una fecha específica o "hoy")
+3. HORA (si menciona una hora específica, en formato 24h)
 
-          // VALIDAR PREDICCIÓN ANTES DE USARLA
-          const validation = validatePrediction(analysis, { lat: parseFloat(lat), lon: parseFloat(lon) });
-          validationResult = getValidationSummary(validation);
+Responde ÚNICAMENTE en formato JSON válido:
+{
+  "location": "nombre de ciudad o región (null si no se menciona)",
+  "date": "MMDD formato (ejemplo: 1005 para 5 de octubre, usar fecha de hoy si dice 'hoy', null si no se menciona)",
+  "hour": "número 0-23 (null si no se menciona hora específica)",
+  "query": "resumen de lo que el usuario quiere saber sobre el clima"
+}
 
-          console.log(`✅ Validación: ${validationResult.status} (confianza: ${validationResult.confidence}%)`);
+Ejemplos:
+- "clima en Cochabamba" → {"location": "Cochabamba", "date": null, "hour": null, "query": "clima en Cochabamba"}
+- "¿Qué temperatura habrá hoy en La Paz a las 5 de la tarde?" → {"location": "La Paz", "date": "1005", "hour": "17", "query": "temperatura hoy a las 5 PM"}
+- "clima en Buenos Aires mañana" → {"location": "Buenos Aires", "date": "1006", "hour": null, "query": "clima mañana"}`;
 
-          if (!validation.isValid) {
-            console.log(`❌ Datos inválidos: ${validation.errors.join(', ')}`);
-            res.writeHead(400, { 'Content-Type': 'application/json' });
+        const extractionResponse = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: 'Eres un asistente que extrae información estructurada de mensajes en lenguaje natural. Respondes SOLO con JSON válido.' },
+            { role: 'user', content: extractionPrompt }
+          ],
+          temperature: 0.1,
+          max_tokens: 150
+        });
+
+        let extractedData;
+        try {
+          const responseText = extractionResponse.choices[0].message.content.trim();
+          // Remover markdown code blocks si existen
+          const jsonText = responseText.replace(/```json\n?|\n?```/g, '').trim();
+          extractedData = JSON.parse(jsonText);
+          console.log(`✅ Datos extraídos:`, extractedData);
+        } catch (parseError) {
+          console.error('❌ Error parseando respuesta de OpenAI:', parseError.message);
+          extractedData = { location: null, date: null, hour: null, query: message };
+        }
+
+        // Si se extrajo ubicación, obtener coordenadas
+        let lat = null;
+        let lon = null;
+        let weatherData = null;
+
+        if (extractedData.location) {
+          console.log(`🌍 Obteniendo coordenadas para: ${extractedData.location}`);
+
+          const coordsPrompt = `¿Cuáles son las coordenadas geográficas (latitud y longitud) de ${extractedData.location}?
+
+Responde ÚNICAMENTE en formato JSON:
+{"lat": número, "lon": número}
+
+Ejemplo: {"lat": -17.3935, "lon": -66.157}`;
+
+          const coordsResponse = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: 'Eres un experto en geografía. Respondes SOLO con JSON válido de coordenadas.' },
+              { role: 'user', content: coordsPrompt }
+            ],
+            temperature: 0.1,
+            max_tokens: 50
+          });
+
+          try {
+            const coordsText = coordsResponse.choices[0].message.content.trim();
+            const coordsJson = coordsText.replace(/```json\n?|\n?```/g, '').trim();
+            const coords = JSON.parse(coordsJson);
+            lat = coords.lat;
+            lon = coords.lon;
+            console.log(`✅ Coordenadas: lat=${lat}, lon=${lon}`);
+          } catch (coordError) {
+            console.error('❌ Error obteniendo coordenadas:', coordError.message);
+          }
+        }
+
+        // Si tenemos coordenadas, llamar al endpoint /weather
+        // Si no hay fecha, usar fecha de hoy
+        if (lat && lon) {
+          let dateToUse = extractedData.date;
+          if (!dateToUse) {
+            // Usar fecha de hoy
+            const today = new Date();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            dateToUse = `${month}${day}`;
+            console.log(`📅 No se especificó fecha, usando hoy: ${dateToUse}`);
+          }
+
+          console.log(`📡 Llamando a /weather con lat=${lat}, lon=${lon}, date=${dateToUse}, hour=${extractedData.hour || 'sin hora'}`);
+
+          // Construir URL interna
+          let weatherUrl = `http://localhost:${PORT}/weather?lat=${lat}&lon=${lon}&date=${dateToUse}`;
+          if (extractedData.hour !== null) {
+            weatherUrl += `&hour=${extractedData.hour}`;
+          }
+
+          try {
+            const weatherResponse = await fetch(weatherUrl);
+            if (weatherResponse.ok) {
+              weatherData = await weatherResponse.json();
+              console.log(`✅ Datos climáticos obtenidos del servidor`);
+
+              // Devolver directamente los datos del servidor sin interpretación de OpenAI
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                success: true,
+                extractedInfo: {
+                  location: extractedData.location,
+                  date: dateToUse,
+                  hour: extractedData.hour,
+                  query: extractedData.query
+                },
+                weatherData: weatherData
+              }));
+              return;
+            } else {
+              const errorData = await weatherResponse.json();
+              res.writeHead(weatherResponse.status, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                success: false,
+                error: 'Error al obtener datos climáticos',
+                details: errorData
+              }));
+              return;
+            }
+          } catch (fetchError) {
+            console.error('❌ Error llamando a /weather:', fetchError.message);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({
-              error: 'Los datos climáticos presentan errores',
-              validation: validationResult
+              success: false,
+              error: 'Error al consultar el servidor de clima',
+              details: fetchError.message
             }));
             return;
           }
-
-          // Predicción horaria si se proporciona hora
-          let hourlyForecast = null;
-          if (hour !== undefined) {
-            const hourNum = parseInt(hour);
-            const tempMin = analysis.trendPrediction.tempMin;
-            const tempMax = analysis.trendPrediction.tempMax;
-            const hourlyTemp = interpolateHourlyTemperature(tempMin, tempMax, hourNum);
-
-            const rainFactor = getHourlyRainFactor(hourNum);
-            const baseRainProb = analysis.precipitation.conditions.heavyRain.probability;
-
-            hourlyForecast = {
-              hour: hourNum,
-              temperature: {
-                expected: hourlyTemp,
-                range: {
-                  min: parseFloat((hourlyTemp - analysis.temperature.statistics.stdDev * 0.5).toFixed(1)),
-                  max: parseFloat((hourlyTemp + analysis.temperature.statistics.stdDev * 0.5).toFixed(1))
-                },
-                unit: '°C'
-              },
-              precipitation: {
-                probability: parseFloat((Math.min(baseRainProb * rainFactor, 100)).toFixed(1))
-              }
-            };
-          }
-
-          weatherContext = {
-            location: { lat: parseFloat(lat), lon: parseFloat(lon) },
-            date,
-            analysis,
-            hourlyForecast,
-            validation: validationResult
-          };
         }
 
-        // Preparar contexto para OpenAI
-        const systemPrompt = `Eres un asistente experto en análisis climático y meteorología que utiliza datos históricos de la NASA POWER API.
-
-Tu trabajo es ayudar a usuarios a entender y analizar condiciones climáticas basándote en datos científicos de más de 30 años de historia.
-
-IMPORTANTE: Antes de responder, SIEMPRE debes validar que los datos sean coherentes:
-- Verificar que la temperatura máxima sea mayor que la mínima
-- Verificar que los valores estén en rangos razonables
-- Verificar que los risk scores sean válidos (0-100)
-- Revisar la confianza de las tendencias (R²)
-
-Si los datos tienen errores, debes informarlo claramente.
-Si los datos tienen warnings pero son válidos, menciona las advertencias pero continúa con el análisis.
-
-Cuando proporciones análisis:
-1. Explica los datos de forma clara y concisa
-2. Interpreta los risk scores (frost, storm, heatStress)
-3. Proporciona recomendaciones prácticas basadas en los datos
-4. Menciona el nivel de confianza de la predicción
-5. Usa un tono profesional pero amigable
-
-Si no se proporcionan datos climáticos, responde de forma general sobre meteorología y clima.`;
-
-        const messages = [
-          { role: 'system', content: systemPrompt }
-        ];
-
-        if (weatherContext) {
-          const contextMessage = `El usuario está consultando sobre el clima en las coordenadas lat=${weatherContext.location.lat}, lon=${weatherContext.location.lon} para la fecha ${weatherContext.date}.
-
-VALIDACIÓN DE DATOS:
-Status: ${validationResult.status}
-Confianza: ${validationResult.confidence}%
-${validationResult.warnings.length > 0 ? `Advertencias: ${validationResult.warnings.join(', ')}` : 'Sin advertencias'}
-
-DATOS CLIMÁTICOS (basados en ${weatherContext.analysis.temperature.statistics.count} años de historia):
-
-Predicción de Temperatura:
-- Máxima: ${weatherContext.analysis.trendPrediction.tempMax}°C
-- Mínima: ${weatherContext.analysis.trendPrediction.tempMin}°C
-- Tendencia Máx: ${weatherContext.analysis.trendPrediction.trend.max.slope > 0 ? '+' : ''}${weatherContext.analysis.trendPrediction.trend.max.slope}°C/año (R²=${weatherContext.analysis.trendPrediction.trend.max.rSquared})
-- Tendencia Mín: ${weatherContext.analysis.trendPrediction.trend.min.slope > 0 ? '+' : ''}${weatherContext.analysis.trendPrediction.trend.min.slope}°C/año (R²=${weatherContext.analysis.trendPrediction.trend.min.rSquared})
-
-Risk Scores:
-- Helada: ${weatherContext.analysis.riskScores.frost.score}/100 (${weatherContext.analysis.riskScores.frost.level})
-  Recomendaciones: ${weatherContext.analysis.riskScores.frost.recommendations.join(', ')}
-- Tormenta: ${weatherContext.analysis.riskScores.storm.score}/100 (${weatherContext.analysis.riskScores.storm.level})
-  Recomendaciones: ${weatherContext.analysis.riskScores.storm.recommendations.join(', ')}
-- Estrés Térmico: ${weatherContext.analysis.riskScores.heatStress.score}/100 (${weatherContext.analysis.riskScores.heatStress.level})
-  Recomendaciones: ${weatherContext.analysis.riskScores.heatStress.recommendations.join(', ')}
-
-Estadísticas Históricas:
-- Temperatura promedio: ${weatherContext.analysis.temperature.statistics.mean}°C (±${weatherContext.analysis.temperature.statistics.stdDev}°C)
-- Viento promedio: ${weatherContext.analysis.wind.statistics.mean} m/s
-- Humedad promedio: ${weatherContext.analysis.humidity.statistics.mean}%
-- Precipitación promedio: ${weatherContext.analysis.precipitation.statistics.mean} mm
-
-${weatherContext.hourlyForecast ? `
-Predicción Horaria (${weatherContext.hourlyForecast.hour}:00):
-- Temperatura esperada: ${weatherContext.hourlyForecast.temperature.expected}°C
-- Rango: ${weatherContext.hourlyForecast.temperature.range.min}°C - ${weatherContext.hourlyForecast.temperature.range.max}°C
-- Probabilidad de lluvia: ${weatherContext.hourlyForecast.precipitation.probability}%
-` : ''}`;
-
-          messages.push({ role: 'system', content: contextMessage });
-        }
-
-        messages.push({ role: 'user', content: message });
-
-        // Llamar a OpenAI
-        console.log(`🤖 Consultando OpenAI...`);
-        const completion = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: messages,
-          temperature: 0.7,
-          max_tokens: 1000
-        });
-
-        const reply = completion.choices[0].message.content;
-        console.log(`✅ Respuesta generada`);
-
+        // Si no se pudo extraer ubicación, responder con mensaje de error amigable
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
-          reply,
-          weatherData: weatherContext ? {
-            location: weatherContext.location,
-            date: weatherContext.date,
-            validation: validationResult,
-            summary: {
-              tempMax: weatherContext.analysis.trendPrediction.tempMax,
-              tempMin: weatherContext.analysis.trendPrediction.tempMin,
-              riskScores: {
-                frost: weatherContext.analysis.riskScores.frost.level,
-                storm: weatherContext.analysis.riskScores.storm.level,
-                heatStress: weatherContext.analysis.riskScores.heatStress.level
-              }
-            }
-          } : null
+          success: false,
+          message: 'No pude identificar una ubicación en tu mensaje. Por favor especifica una ciudad o región.',
+          extractedInfo: extractedData
         }));
 
       } catch (error) {

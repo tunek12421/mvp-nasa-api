@@ -423,8 +423,27 @@ async function sendChatMessage() {
       throw new Error(data.error || 'Error al procesar mensaje');
     }
 
-    // Add bot response to chat
-    addMessageToChat(data.reply, 'bot', data.weatherData?.validation);
+    // Verificar si la respuesta fue exitosa
+    if (data.success) {
+      // Mostrar los datos del clima igual que el botón "Analizar"
+      displayResults(data.weatherData);
+
+      // Agregar mensaje informativo al chat
+      const locationInfo = data.extractedInfo.location || `${data.weatherData.location.lat}, ${data.weatherData.location.lon}`;
+      const hourInfo = data.extractedInfo.hour !== null ? ` a las ${data.extractedInfo.hour}:00` : '';
+      const dateInfo = `${data.weatherData.day} de ${data.weatherData.monthName}`;
+
+      addMessageToChat(
+        `📍 Predicción climática para ${locationInfo}${hourInfo} el ${dateInfo}. Los resultados se muestran arriba.`,
+        'bot'
+      );
+    } else {
+      // Error o no se pudo extraer ubicación
+      addMessageToChat(
+        data.message || data.error || 'No pude procesar tu solicitud. Intenta especificar una ubicación.',
+        'bot'
+      );
+    }
 
   } catch (error) {
     console.error('Error:', error);
@@ -437,7 +456,7 @@ async function sendChatMessage() {
   }
 }
 
-function addMessageToChat(text, sender, validation = null) {
+function addMessageToChat(text, sender) {
   const chatMessages = document.getElementById('chat-messages');
 
   const messageDiv = document.createElement('div');
@@ -457,17 +476,6 @@ function addMessageToChat(text, sender, validation = null) {
     p.textContent = para;
     contentDiv.appendChild(p);
   });
-
-  // Add validation info if present
-  if (validation && sender === 'bot') {
-    const validationDiv = document.createElement('div');
-    validationDiv.className = `message-validation validation-${validation.status}`;
-    validationDiv.innerHTML = `
-      <strong>Validación de datos:</strong> ${validation.message}<br>
-      <small>Confianza: ${validation.confidence}%</small>
-    `;
-    contentDiv.appendChild(validationDiv);
-  }
 
   messageDiv.appendChild(avatarDiv);
   messageDiv.appendChild(contentDiv);
