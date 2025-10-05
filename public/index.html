@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Análisis Climático NASA POWER</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <h1>🌍 Análisis Climático</h1>
+        <p class="subtitle">Predicciones meteorológicas basadas en datos históricos de NASA POWER</p>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Control Panel -->
+      <section class="control-panel">
+        <div class="card">
+          <h2>📍 Configuración</h2>
+
+          <div class="form-group">
+            <label for="location-search">Buscar ubicación</label>
+            <input type="text" id="location-search" placeholder="Ej: Cochabamba, Bolivia">
+            <button id="search-btn" class="btn btn-secondary">Buscar</button>
+          </div>
+
+          <div class="coordinates-display">
+            <div class="coord-item">
+              <span class="coord-label">Latitud:</span>
+              <span id="lat-display">-17.3935</span>
+            </div>
+            <div class="coord-item">
+              <span class="coord-label">Longitud:</span>
+              <span id="lon-display">-66.1570</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="date-input">Fecha a analizar</label>
+            <input type="date" id="date-input" value="">
+          </div>
+
+          <div class="form-group">
+            <label for="hour-input">Hora específica (opcional)</label>
+            <select id="hour-input">
+              <option value="">Todo el día</option>
+              <option value="0">00:00</option>
+              <option value="3">03:00</option>
+              <option value="6">06:00 (Amanecer)</option>
+              <option value="9">09:00</option>
+              <option value="12">12:00 (Mediodía)</option>
+              <option value="15">15:00 (Tarde)</option>
+              <option value="18">18:00 (Atardecer)</option>
+              <option value="21">21:00</option>
+            </select>
+          </div>
+
+          <button id="analyze-btn" class="btn btn-primary">
+            <span class="btn-icon">🔍</span>
+            Analizar Clima
+          </button>
+
+          <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Consultando NASA POWER API...</p>
+          </div>
+        </div>
+
+        <!-- Map -->
+        <div class="card map-container">
+          <h3>Selecciona una ubicación en el mapa</h3>
+          <div id="map"></div>
+        </div>
+      </section>
+
+      <!-- Results Section -->
+      <section id="results" class="results-section hidden">
+        <!-- Location Info -->
+        <div class="location-info">
+          <h2>📍 <span id="result-location"></span></h2>
+          <p id="result-date"></p>
+        </div>
+
+        <!-- Hourly Forecast (if applicable) -->
+        <div id="hourly-section" class="hidden">
+          <div class="card highlight-card">
+            <h3>⏰ Pronóstico por Hora</h3>
+            <div class="hourly-forecast">
+              <div class="forecast-item">
+                <div class="forecast-icon">🌡️</div>
+                <div class="forecast-data">
+                  <span class="forecast-label">Temperatura Esperada</span>
+                  <span class="forecast-value" id="hourly-temp">--°C</span>
+                </div>
+              </div>
+              <div class="forecast-item">
+                <div class="forecast-icon">🌧️</div>
+                <div class="forecast-data">
+                  <span class="forecast-label">Probabilidad de Lluvia</span>
+                  <span class="forecast-value" id="hourly-rain">--%</span>
+                </div>
+              </div>
+            </div>
+            <p class="forecast-note" id="hourly-note"></p>
+          </div>
+        </div>
+
+        <!-- Risk Scores -->
+        <div class="risk-section">
+          <h3>⚠️ Evaluación de Riesgos</h3>
+          <div class="risk-grid">
+            <div class="risk-card" id="frost-risk">
+              <div class="risk-header">
+                <span class="risk-icon">❄️</span>
+                <span class="risk-title">Helada</span>
+              </div>
+              <div class="risk-score">
+                <div class="score-circle">
+                  <span class="score-value" id="frost-score">--</span>
+                </div>
+              </div>
+              <div class="risk-level" id="frost-level">--</div>
+              <ul class="risk-recommendations" id="frost-recommendations"></ul>
+            </div>
+
+            <div class="risk-card" id="storm-risk">
+              <div class="risk-header">
+                <span class="risk-icon">⛈️</span>
+                <span class="risk-title">Tormenta</span>
+              </div>
+              <div class="risk-score">
+                <div class="score-circle">
+                  <span class="score-value" id="storm-score">--</span>
+                </div>
+              </div>
+              <div class="risk-level" id="storm-level">--</div>
+              <ul class="risk-recommendations" id="storm-recommendations"></ul>
+            </div>
+
+            <div class="risk-card" id="heat-risk">
+              <div class="risk-header">
+                <span class="risk-icon">🌡️</span>
+                <span class="risk-title">Estrés Térmico</span>
+              </div>
+              <div class="risk-score">
+                <div class="score-circle">
+                  <span class="score-value" id="heat-score">--</span>
+                </div>
+              </div>
+              <div class="risk-level" id="heat-level">--</div>
+              <ul class="risk-recommendations" id="heat-recommendations"></ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Temperature Stats -->
+        <div class="stats-section">
+          <h3>🌡️ Estadísticas de Temperatura</h3>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-icon">📈</div>
+              <div class="stat-content">
+                <span class="stat-label">Máxima Esperada</span>
+                <span class="stat-value" id="temp-max-pred">--°C</span>
+                <span class="stat-detail" id="temp-max-trend"></span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">📉</div>
+              <div class="stat-content">
+                <span class="stat-label">Mínima Esperada</span>
+                <span class="stat-value" id="temp-min-pred">--°C</span>
+                <span class="stat-detail" id="temp-min-trend"></span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">📊</div>
+              <div class="stat-content">
+                <span class="stat-label">Promedio Histórico</span>
+                <span class="stat-value" id="temp-avg">--°C</span>
+                <span class="stat-detail" id="temp-range"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts-section">
+          <div class="card">
+            <h3>📊 Distribución de Temperaturas Históricas</h3>
+            <canvas id="temp-chart"></canvas>
+          </div>
+
+          <div class="card">
+            <h3>💨 Condiciones Climáticas - Probabilidades</h3>
+            <canvas id="conditions-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- Detailed Stats -->
+        <div class="detailed-stats">
+          <div class="card">
+            <h3>📋 Estadísticas Detalladas</h3>
+            <div class="stats-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Variable</th>
+                    <th>Media</th>
+                    <th>Mediana</th>
+                    <th>Mín</th>
+                    <th>Máx</th>
+                    <th>Desv. Est.</th>
+                  </tr>
+                </thead>
+                <tbody id="stats-table-body">
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>Datos proporcionados por NASA POWER API | Elevaciones por Open Topo Data</p>
+      <p>Análisis basado en datos históricos de 30 años</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

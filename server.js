@@ -4,6 +4,12 @@
 
 import http from 'http';
 import url from 'url';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const PORT = 3000;
 const BASE_URL_DAILY = 'https://power.larc.nasa.gov/api/temporal/daily/point';
@@ -618,6 +624,24 @@ function calculateDailyProbabilities(data, targetDate, elevation = 0) {
 }
 
 /**
+ * Función auxiliar para servir archivos estáticos
+ */
+function serveStaticFile(res, filePath, contentType) {
+  const fullPath = path.join(__dirname, filePath);
+
+  fs.readFile(fullPath, (err, data) => {
+    if (err) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('404 - Archivo no encontrado');
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': contentType });
+    res.end(data);
+  });
+}
+
+/**
  * Servidor HTTP
  */
 const server = http.createServer(async (req, res) => {
@@ -634,21 +658,19 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Endpoint de prueba
-  if (parsedUrl.pathname === '/') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      message: 'NASA POWER API MVP Server - Daily & Hourly Weather Analysis',
-      endpoints: {
-        '/weather': 'GET - Obtener probabilidades de clima extremo para fecha específica',
-        'params': 'lat, lon, date (MMDD), hour (0-23, opcional)'
-      },
-      examples: {
-        daily: '/weather?lat=-17.3935&lon=-66.157&date=1004',
-        hourly: '/weather?lat=-17.3935&lon=-66.157&date=1004&hour=15'
-      },
-      note: 'Analiza datos históricos del mismo día. Si incluyes hour, interpolamos temperatura y probabilidades por hora.'
-    }));
+  // Servir interfaz web
+  if (parsedUrl.pathname === '/' || parsedUrl.pathname === '/index.html') {
+    serveStaticFile(res, 'public/index.html', 'text/html');
+    return;
+  }
+
+  if (parsedUrl.pathname === '/styles.css') {
+    serveStaticFile(res, 'public/styles.css', 'text/css');
+    return;
+  }
+
+  if (parsedUrl.pathname === '/app.js') {
+    serveStaticFile(res, 'public/app.js', 'application/javascript');
     return;
   }
 
