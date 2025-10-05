@@ -13,7 +13,7 @@ const ELEVATION_API_URL = 'https://api.opentopodata.org/v1/srtm30m';
 const elevationCache = new Map();
 
 /**
- * INNOVACIÓN: Obtiene elevación usando Open Topo Data (SRTM 30m)
+ * Obtiene elevación usando Open Topo Data (SRTM 30m)
  * Cache de resultados para no exceder rate limit (1000 req/día)
  */
 async function getElevation(lat, lon) {
@@ -243,7 +243,7 @@ function calculateStatistics(values) {
 
 /**
  * Calcula probabilidades de condiciones extremas con análisis estadístico completo (DIARIO)
- * INNOVACIÓN: Aplica corrección topográfica por elevación
+ * Aplica corrección topográfica por elevación
  */
 function calculateDailyProbabilities(data, targetDate, elevation = 0) {
   console.log('\n🔍 === PASO 2: Procesando datos diarios ===');
@@ -332,7 +332,7 @@ function calculateDailyProbabilities(data, targetDate, elevation = 0) {
   const rainValues = getDailyValuesWithYear('PRECTOTCORR').map(d => d.value);
 
   // ANÁLISIS DE TENDENCIA: Calcular si hay calentamiento/enfriamiento
-  // INNOVACIÓN: Usa regresión PONDERADA para dar más peso a años recientes
+  // Usa regresión PONDERADA para dar más peso a años recientes
   const calculateTrend = (dataWithYear, currentYear) => {
     if (dataWithYear.length < 10) return { slope: 0, confidence: 'low', method: 'insufficient_data' };
 
@@ -412,7 +412,7 @@ function calculateDailyProbabilities(data, targetDate, elevation = 0) {
   // No aplicamos corrección adicional (los datos satelitales ya están calibrados)
   const elevationCorrection = 0; // Sin corrección (datos ya ajustados)
 
-  // INNOVACIÓN: UMBRALES ADAPTATIVOS basados en velocidad de cambio climático
+  // UMBRALES ADAPTATIVOS basados en velocidad de cambio climático
   // Ajustar umbrales dinámicamente según tendencia de próxima década
   const decadeProjection = 10; // años hacia adelante
   const thresholds = {
@@ -441,7 +441,7 @@ function calculateDailyProbabilities(data, targetDate, elevation = 0) {
   console.log(`   💧 Muy húmedo (>${thresholds.veryHumid}%): ${probVeryHumid.toFixed(1)}%`);
   console.log(`   🌧️  Lluvia intensa (>${thresholds.heavyRain}mm): ${probHeavyRain.toFixed(1)}%`);
 
-  // INNOVACIÓN: COMPOUND RISK SCORES
+  // COMPOUND RISK SCORES
   // Combinar múltiples variables para evaluar riesgos específicos
   console.log('\n⚠️  === PASO 5: Calculando Risk Scores Compuestos ===');
 
@@ -719,7 +719,7 @@ const server = http.createServer(async (req, res) => {
         `${currentYear}1231`
       );
 
-      // INNOVACIÓN: Obtener elevación para corrección topográfica
+      // Obtener elevación para corrección topográfica
       console.log('\n🏔️  === Obteniendo elevación ===');
       const elevation = await getElevation(parseFloat(lat), parseFloat(lon));
 
