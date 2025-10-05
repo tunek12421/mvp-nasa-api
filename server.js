@@ -687,7 +687,7 @@ const server = http.createServer(async (req, res) => {
   // Endpoint principal - ahora acepta fecha específica y hora opcional
   if (parsedUrl.pathname === '/weather') {
     try {
-      const { lat, lon, date, hour } = parsedUrl.query;
+      const { lat, lon, date, hour, locationName } = parsedUrl.query;
 
       if (!lat || !lon || !date) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -836,11 +836,18 @@ const server = http.createServer(async (req, res) => {
         response.hourlyForecast = hourlyForecast;
       }
 
-      // Obtener nombre de ubicación con OpenAI
+      // Obtener nombre de ubicación
       console.log('\n🌍 === Obteniendo nombre de ubicación ===');
-      let locationName = `${parseFloat(lat)}, ${parseFloat(lon)}`;
-      try {
-        const locationPrompt = `Dadas estas coordenadas geográficas: latitud ${lat}, longitud ${lon}
+      let finalLocationName = `${parseFloat(lat)}, ${parseFloat(lon)}`;
+
+      // Si se proporcionó locationName en el query, usarlo directamente
+      if (locationName) {
+        finalLocationName = decodeURIComponent(locationName);
+        console.log(`✅ Usando nombre proporcionado: ${finalLocationName}`);
+      } else {
+        // Si no, obtener con OpenAI
+        try {
+          const locationPrompt = `Dadas estas coordenadas geográficas: latitud ${lat}, longitud ${lon}
 
 ¿A qué ciudad, pueblo o región pertenecen estas coordenadas?
 
@@ -850,20 +857,21 @@ Responde SOLAMENTE con el nombre de la ubicación en este formato:
 - Máximo 30 caracteres
 - Sin explicaciones adicionales`;
 
-        const locationResponse = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: 'Eres un experto en geografía que identifica ubicaciones por coordenadas.' },
-            { role: 'user', content: locationPrompt }
-          ],
-          temperature: 0.1,
-          max_tokens: 30
-        });
+          const locationResponse = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: 'Eres un experto en geografía que identifica ubicaciones por coordenadas.' },
+              { role: 'user', content: locationPrompt }
+            ],
+            temperature: 0.1,
+            max_tokens: 30
+          });
 
-        locationName = locationResponse.choices[0].message.content.trim();
-        console.log(`✅ Ubicación identificada: ${locationName}`);
-      } catch (error) {
-        console.error('⚠️  Error obteniendo nombre de ubicación:', error.message);
+          finalLocationName = locationResponse.choices[0].message.content.trim();
+          console.log(`✅ Ubicación identificada por IA: ${finalLocationName}`);
+        } catch (error) {
+          console.error('⚠️  Error obteniendo nombre de ubicación:', error.message);
+        }
       }
 
       // Clasificar clima con OpenAI
@@ -939,7 +947,7 @@ IMPORTANTE:
       }
 
       // Agregar nombre de ubicación a la respuesta
-      response.locationName = locationName;
+      response.locationName = finalLocationName;
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(response, null, 2));
@@ -1086,6 +1094,16 @@ Ejemplo: {"lat": -17.3935, "lon": -66.157}`;
           let weatherUrl = `http://localhost:${PORT}/weather?lat=${lat}&lon=${lon}&date=${dateToUse}`;
           if (extractedData.hour !== null) {
             weatherUrl += `&hour=${extractedData.hour}`;
+          }
+          // Pasar el nombre de ubicación extraído para evitar inconsistencias
+          if (extractedData.location) {
+            // Asegurarse de que el nombre incluya el país si no lo tiene
+            let fullLocationName = extractedData.location;
+            if (!fullLocationName.includes(',')) {
+              // Si no tiene coma, probablemente no tiene país, agregarlo
+              fullLocationName += ', Bolivia';  // Asumimos Bolivia por defecto para esta región
+            }
+            weatherUrl += `&locationName=${encodeURIComponent(fullLocationName)}`;
           }
 
           try {
