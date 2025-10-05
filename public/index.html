@@ -195,11 +195,6 @@
         <!-- Charts -->
         <div class="charts-section">
           <div class="card">
-            <h3>📊 Distribución de Temperaturas Históricas</h3>
-            <canvas id="temp-chart"></canvas>
-          </div>
-
-          <div class="card">
             <h3>💨 Condiciones Climáticas - Probabilidades</h3>
             <canvas id="conditions-chart"></canvas>
           </div>
@@ -225,6 +220,41 @@
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Chatbot Section -->
+      <section class="chatbot-section">
+        <div class="card chatbot-card">
+          <h3>🤖 Asistente Climático con IA</h3>
+          <p class="chatbot-description">Pregúntame sobre el clima y las predicciones. Puedo analizar los datos de la ubicación actual.</p>
+
+          <div id="chat-messages" class="chat-messages">
+            <div class="chat-message bot-message">
+              <div class="message-avatar">🤖</div>
+              <div class="message-content">
+                <p>¡Hola! Soy tu asistente climático. Puedo ayudarte a entender las predicciones meteorológicas basadas en datos históricos de la NASA.</p>
+                <p>Selecciona una ubicación y fecha en el mapa arriba, luego pregúntame lo que quieras saber sobre el clima.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-input-container">
+            <input
+              type="text"
+              id="chat-input"
+              placeholder="Pregunta sobre el clima..."
+              class="chat-input"
+            >
+            <button id="send-chat-btn" class="btn btn-primary btn-chat">
+              Enviar
+            </button>
+          </div>
+
+          <div id="chat-loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Analizando datos y generando respuesta...</p>
           </div>
         </div>
       </section>

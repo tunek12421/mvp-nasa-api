@@ -5,12 +5,15 @@ let currentLat = -17.3935;
 let currentLon = -66.1570;
 let tempChart = null;
 let conditionsChart = null;
+let currentDate = null;
+let currentHour = null;
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
   initMap();
   initEventListeners();
   setDefaultDate();
+  initChatbot();
 });
 
 // Initialize Leaflet map
@@ -156,11 +159,29 @@ function displayResults(data) {
   // Scroll to results
   document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
 
-  // Location info
-  document.getElementById('result-location').textContent =
-    `${data.location.lat}, ${data.location.lon}`;
-  document.getElementById('result-date').textContent =
-    `${data.day} de ${data.monthName} | Análisis basado en ${data.metadata.yearsAnalyzed} años de datos históricos`;
+  // Location info with weather emoji and temperature
+  const locationText = data.locationName || `${data.location.lat}, ${data.location.lon}`;
+
+  // Get temperature for emoji context
+  let tempForEmoji = '';
+  if (data.hourlyForecast) {
+    // Si hay hora específica, usar temperatura horaria
+    tempForEmoji = `${data.hourlyForecast.temperature.expected}°C`;
+  } else {
+    // Si no hay hora, usar promedio de máx y mín
+    const avgTemp = ((data.analysis.trendPrediction.tempMax + data.analysis.trendPrediction.tempMin) / 2).toFixed(1);
+    tempForEmoji = `${avgTemp}°C`;
+  }
+
+  const emojiDisplay = data.weatherEmoji ? ` ${data.weatherEmoji} ${tempForEmoji}` : '';
+  document.getElementById('result-location').textContent = locationText + emojiDisplay;
+
+  document.getElementById('result-date').textContent = `${data.day} de ${data.monthName}`;
+
+  // Log classification for debugging
+  if (data.weatherClassification) {
+    console.log(`🤖 OpenAI clasificó el clima como: ${data.weatherClassification} ${data.weatherEmoji}`);
+  }
 
   // Hourly forecast (if available)
   if (data.hourlyForecast) {
@@ -245,67 +266,6 @@ function displayTemperatureStats(analysis) {
 
 // Display charts
 function displayCharts(analysis) {
-  // Temperature distribution chart
-  const tempCtx = document.getElementById('temp-chart').getContext('2d');
-
-  if (tempChart) {
-    tempChart.destroy();
-  }
-
-  tempChart = new Chart(tempCtx, {
-    type: 'bar',
-    data: {
-      labels: ['P10', 'P25', 'Mediana', 'Media', 'P75', 'P90'],
-      datasets: [
-        {
-          label: 'Temp. Máxima (°C)',
-          data: [
-            analysis.temperature.max.statistics.percentiles.p10,
-            analysis.temperature.max.statistics.percentiles.p25,
-            analysis.temperature.max.statistics.median,
-            analysis.temperature.max.statistics.mean,
-            analysis.temperature.max.statistics.percentiles.p75,
-            analysis.temperature.max.statistics.percentiles.p90
-          ],
-          backgroundColor: 'rgba(239, 68, 68, 0.7)',
-          borderColor: 'rgba(239, 68, 68, 1)',
-          borderWidth: 1
-        },
-        {
-          label: 'Temp. Mínima (°C)',
-          data: [
-            analysis.temperature.min.statistics.percentiles.p10,
-            analysis.temperature.min.statistics.percentiles.p25,
-            analysis.temperature.min.statistics.median,
-            analysis.temperature.min.statistics.mean,
-            analysis.temperature.min.statistics.percentiles.p75,
-            analysis.temperature.min.statistics.percentiles.p90
-          ],
-          backgroundColor: 'rgba(59, 130, 246, 0.7)',
-          borderColor: 'rgba(59, 130, 246, 1)',
-          borderWidth: 1
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: true,
-      plugins: {
-        legend: {
-          position: 'top',
-        },
-        title: {
-          display: false
-        }
-      },
-      scales: {
-        y: {
-          beginAtZero: false
-        }
-      }
-    }
-  });
-
   // Conditions probabilities chart
   const condCtx = document.getElementById('conditions-chart').getContext('2d');
 
@@ -387,4 +347,133 @@ function displayStatsTable(analysis) {
     `;
     tbody.appendChild(row);
   });
+}
+
+// ===============================
+// CHATBOT FUNCTIONALITY
+// ===============================
+
+function initChatbot() {
+  const chatInput = document.getElementById('chat-input');
+  const sendBtn = document.getElementById('send-chat-btn');
+
+  sendBtn.addEventListener('click', sendChatMessage);
+
+  // Allow Enter key to send message
+  chatInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      sendChatMessage();
+    }
+  });
+}
+
+async function sendChatMessage() {
+  const chatInput = document.getElementById('chat-input');
+  const message = chatInput.value.trim();
+
+  if (!message) return;
+
+  // Add user message to chat
+  addMessageToChat(message, 'user');
+
+  // Clear input
+  chatInput.value = '';
+
+  // Show loading
+  const loadingEl = document.getElementById('chat-loading');
+  loadingEl.classList.remove('hidden');
+
+  try {
+    // Prepare request payload
+    const payload = {
+      message: message
+    };
+
+    // Include current location and date if available
+    const dateInput = document.getElementById('date-input').value;
+    const hourInput = document.getElementById('hour-input').value;
+
+    if (dateInput) {
+      const date = new Date(dateInput);
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const dateMMDD = `${month}${day}`;
+
+      payload.lat = currentLat;
+      payload.lon = currentLon;
+      payload.date = dateMMDD;
+
+      if (hourInput) {
+        payload.hour = hourInput;
+      }
+    }
+
+    // Send to chatbot endpoint
+    const response = await fetch('/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Error al procesar mensaje');
+    }
+
+    // Add bot response to chat
+    addMessageToChat(data.reply, 'bot', data.weatherData?.validation);
+
+  } catch (error) {
+    console.error('Error:', error);
+    addMessageToChat(
+      `Error: ${error.message}. Por favor intenta de nuevo.`,
+      'bot'
+    );
+  } finally {
+    loadingEl.classList.add('hidden');
+  }
+}
+
+function addMessageToChat(text, sender, validation = null) {
+  const chatMessages = document.getElementById('chat-messages');
+
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `chat-message ${sender}-message`;
+
+  const avatarDiv = document.createElement('div');
+  avatarDiv.className = 'message-avatar';
+  avatarDiv.textContent = sender === 'bot' ? '🤖' : '👤';
+
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'message-content';
+
+  // Convert line breaks to paragraphs for better formatting
+  const paragraphs = text.split('\n\n').filter(p => p.trim());
+  paragraphs.forEach(para => {
+    const p = document.createElement('p');
+    p.textContent = para;
+    contentDiv.appendChild(p);
+  });
+
+  // Add validation info if present
+  if (validation && sender === 'bot') {
+    const validationDiv = document.createElement('div');
+    validationDiv.className = `message-validation validation-${validation.status}`;
+    validationDiv.innerHTML = `
+      <strong>Validación de datos:</strong> ${validation.message}<br>
+      <small>Confianza: ${validation.confidence}%</small>
+    `;
+    contentDiv.appendChild(validationDiv);
+  }
+
+  messageDiv.appendChild(avatarDiv);
+  messageDiv.appendChild(contentDiv);
+
+  chatMessages.appendChild(messageDiv);
+
+  // Scroll to bottom
+  chatMessages.scrollTop = chatMessages.scrollHeight;
 }

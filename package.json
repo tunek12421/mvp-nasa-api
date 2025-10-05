@@ -10,5 +10,9 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "MVP para probar NASA POWER API"
+  "description": "MVP para probar NASA POWER API",
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "openai": "^6.1.0"
+  }
 }
