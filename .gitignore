@@ -1,0 +1,13 @@
+node_modules/
+*.log
+.env
+data-sample.json
+
+# Claude Code
+.claude/
+
+# Pruebas y archivos temporales
+pruebas-curl/
+salida.txt
+test-*.js
+!test-nasa-power.js
