@@ -183,6 +183,9 @@ function displayResults(data) {
     console.log(`🤖 OpenAI clasificó el clima como: ${data.weatherClassification} ${data.weatherEmoji}`);
   }
 
+  // Show stickman based on classification
+  displayStickman(data.weatherClassification);
+
   // Hourly forecast (if available)
   if (data.hourlyForecast) {
     document.getElementById('hourly-section').classList.remove('hidden');
@@ -428,6 +431,9 @@ async function sendChatMessage() {
       // Mostrar los datos del clima igual que el botón "Analizar"
       displayResults(data.weatherData);
 
+      // Scroll to results
+      document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+
       // Agregar mensaje informativo al chat
       const locationInfo = data.extractedInfo.location || `${data.weatherData.location.lat}, ${data.weatherData.location.lon}`;
       const hourInfo = data.extractedInfo.hour !== null ? ` a las ${data.extractedInfo.hour}:00` : '';
@@ -484,4 +490,28 @@ function addMessageToChat(text, sender) {
 
   // Scroll to bottom
   chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// Display stickman GIF based on weather classification
+function displayStickman(classification) {
+  const stickmanContainer = document.getElementById('stickman-container');
+  const stickmanGif = document.getElementById('stickman-gif');
+
+  // Map classification to GIF filename
+  const stickmanMap = {
+    'muy caluroso': 'calor.gif',
+    'muy frío': 'frio.gif',
+    'agradable': 'normal.gif',
+    'muy ventoso': 'normal.gif',  // Fallback to normal
+    'muy húmedo': 'normal.gif'     // Fallback to normal
+  };
+
+  const gifFile = stickmanMap[classification];
+
+  if (gifFile) {
+    stickmanGif.src = gifFile;
+    stickmanContainer.classList.remove('hidden');
+  } else {
+    stickmanContainer.classList.add('hidden');
+  }
 }

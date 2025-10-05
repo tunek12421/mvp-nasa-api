@@ -684,6 +684,22 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Servir archivos GIF
+  if (parsedUrl.pathname === '/calor.gif') {
+    serveStaticFile(res, 'public/calor.gif', 'image/gif');
+    return;
+  }
+
+  if (parsedUrl.pathname === '/frio.gif') {
+    serveStaticFile(res, 'public/frio.gif', 'image/gif');
+    return;
+  }
+
+  if (parsedUrl.pathname === '/normal.gif') {
+    serveStaticFile(res, 'public/normal.gif', 'image/gif');
+    return;
+  }
+
   // Endpoint principal - ahora acepta fecha específica y hora opcional
   if (parsedUrl.pathname === '/weather') {
     try {
