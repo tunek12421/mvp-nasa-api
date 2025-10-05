@@ -1,124 +1,65 @@
-# MVP - NASA POWER API
+# NASA Weather Risk Analysis API
 
-Prueba de concepto para consumir NASA POWER API y calcular probabilidades de condiciones climáticas extremas.
+Análisis de riesgos climáticos basado en datos históricos de NASA POWER.
 
-## 🚀 Inicio Rápido
+## Uso
 
-### 1. Probar API directamente (sin servidor)
-```bash
-npm test
-```
-
-Esto ejecuta `test-nasa-power.js` que:
-- Consulta datos climatológicos históricos (30 años)
-- Analiza temperatura, precipitación, viento, humedad
-- Calcula probabilidades de condiciones extremas
-
-### 2. Servidor HTTP con endpoint
+### Servidor
 ```bash
 npm run dev
 ```
 
-El servidor expone:
-- **URL**: `http://localhost:3000`
-- **Endpoint**: `/weather?lat={lat}&lon={lon}&month={month}`
-
-#### Ejemplo:
-```bash
-curl "http://localhost:3000/weather?lat=19.4326&lon=-99.1332&month=3"
+### Endpoint
+```
+GET /weather?lat={lat}&lon={lon}&date={MMDD}&hour={0-23}
 ```
 
-## 📊 ¿Qué datos obtenemos?
+**Ejemplo:**
+```bash
+curl "http://localhost:3000/weather?lat=-17.3935&lon=-66.157&date=1004&hour=15"
+```
 
-### Parámetros de NASA POWER API:
-- **T2M**: Temperatura promedio a 2m (°C)
-- **T2M_MAX**: Temperatura máxima (°C)
-- **T2M_MIN**: Temperatura mínima (°C)
-- **PRECTOTCORR**: Precipitación total corregida (mm)
-- **RH2M**: Humedad relativa a 2m (%)
-- **WS2M**: Velocidad del viento a 2m (m/s)
-- **WS2M_MAX**: Velocidad máxima del viento (m/s)
-
-### Condiciones que calculamos:
-1. ☀️ **Muy caluroso** (>35°C)
-2. ❄️ **Muy frío** (<5°C)
-3. 💨 **Muy ventoso** (>10 m/s)
-4. 💧 **Muy húmedo** (>80%)
-5. 🌧️ **Lluvia intensa** (>100mm)
-
-## 📡 API Response Example
+## Respuesta
 
 ```json
 {
-  "location": {
-    "lat": 19.4326,
-    "lon": -99.1332
-  },
-  "month": 3,
-  "period": "1991-2020",
-  "conditions": {
-    "veryHot": {
-      "probability": 10,
-      "avgTemp": 26.5,
-      "threshold": 35,
-      "unit": "°C"
+  "location": { "lat": -17.3935, "lon": -66.157 },
+  "date": "1004",
+  "analysis": {
+    "trendPrediction": {
+      "tempMax": 28.4,
+      "tempMin": 12.1,
+      "trend": { ... }
     },
-    "veryCold": {
-      "probability": 10,
-      "avgTemp": 12.3,
-      "threshold": 5,
-      "unit": "°C"
-    },
-    "veryWindy": {
-      "probability": 50,
-      "avgWind": 8.5,
-      "threshold": 10,
-      "unit": "m/s"
-    },
-    "veryHumid": {
-      "probability": 50,
-      "avgHumidity": 65.2,
-      "threshold": 80,
-      "unit": "%"
-    },
-    "heavyRain": {
-      "probability": 10,
-      "avgRain": 15.4,
-      "threshold": 100,
-      "unit": "mm"
+    "temperature": { "statistics": { ... }, "conditions": { ... } },
+    "riskScores": {
+      "frost": { "score": 15.2, "level": "BAJO", "recommendations": [...] },
+      "storm": { "score": 42.8, "level": "MEDIO", "recommendations": [...] },
+      "heatStress": { "score": 68.5, "level": "MEDIO", "recommendations": [...] }
     }
+  },
+  "hourlyForecast": {
+    "hour": 15,
+    "temperature": { "expected": 27.8, "range": { "min": 25.2, "max": 30.4 } }
   }
 }
 ```
 
-## 🔑 Sin API Key Necesaria
+## Características
 
-NASA POWER API es **completamente gratuita** y **no requiere autenticación**.
+- Análisis estadístico sobre 30 años de datos históricos
+- Detección de tendencias climáticas con regresión ponderada
+- Umbrales adaptativos basados en proyecciones
+- Predicción horaria con interpolación sinusoidal
+- Risk scores compuestos (helada, tormenta, estrés térmico)
+- Integración con datos de elevación topográfica
 
-## 📚 Documentación NASA POWER
+## Stack
 
-- **API Docs**: https://power.larc.nasa.gov/docs/
-- **Parámetros disponibles**: https://power.larc.nasa.gov/docs/services/api/
-- **Período de datos**: 1981 - presente
+- Node.js con ES Modules
+- NASA POWER API (datos climatológicos)
+- Open Topo Data API (elevación)
 
-## ✅ Próximos pasos para el Desafío 18
+## Fuente de datos
 
-1. ✅ Consumir NASA POWER API (HECHO)
-2. ✅ Calcular probabilidades basadas en históricos (HECHO)
-3. 🔄 Crear interfaz web para seleccionar ubicación y fecha
-4. 🔄 Integrar con mapa para selección visual de ubicación
-5. 🔄 Visualizar probabilidades con gráficos
-6. 🔄 Comparar con pronósticos actuales (OpenWeatherMap)
-
-## 🛠️ Stack Técnico Actual
-
-- Node.js (ES Modules)
-- Fetch API nativa
-- HTTP server nativo (sin dependencias)
-
-## 📝 Notas
-
-- Los datos son **promedios climatológicos** de 30 años (1991-2020)
-- Las probabilidades se calculan comparando valores históricos con umbrales definidos
-- Para eventos específicos se necesitaría análisis estadístico más complejo (desviación estándar, percentiles, etc.)
-# mvp-nasa-api
+NASA POWER API - https://power.larc.nasa.gov/docs/
