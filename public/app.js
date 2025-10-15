@@ -52,7 +52,11 @@ function updateCoordinates(lat, lon) {
 // Set default date to today
 function setDefaultDate() {
   const today = new Date();
-  const dateString = today.toISOString().split('T')[0];
+  // Use local date components to avoid UTC timezone shift
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  const dateString = `${year}-${month}-${day}`;
   document.getElementById('date-input').value = dateString;
 }
 
@@ -116,9 +120,8 @@ async function analyzeWeather() {
   }
 
   // Convert date to MMDD format
-  const date = new Date(dateInput);
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  // Parse directly from input string to avoid UTC timezone shift
+  const [year, month, day] = dateInput.split('-');
   const dateMMDD = `${month}${day}`;
 
   // Show loading
@@ -397,9 +400,8 @@ async function sendChatMessage() {
     const hourInput = document.getElementById('hour-input').value;
 
     if (dateInput) {
-      const date = new Date(dateInput);
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
+      // Parse directly from input string to avoid UTC timezone shift
+      const [year, month, day] = dateInput.split('-');
       const dateMMDD = `${month}${day}`;
 
       payload.lat = currentLat;
