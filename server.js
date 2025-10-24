@@ -74,6 +74,7 @@ async function getElevation(lat, lon) {
 /**
  * Obtiene nombre de ubicación usando Nominatim (OpenStreetMap)
  * SIN usar API de OpenAI - Servicio gratuito de geocodificación inversa
+ * MEJORADO: Busca el municipio/ciudad más cercana con múltiples intentos
  */
 async function getLocationName(lat, lon) {
   const cacheKey = `${lat.toFixed(4)},${lon.toFixed(4)}`;
@@ -85,34 +86,70 @@ async function getLocationName(lat, lon) {
   }
 
   try {
-    // Nominatim requiere User-Agent según sus políticas de uso
-    const url = `${NOMINATIM_API_URL}?lat=${lat}&lon=${lon}&format=json&accept-language=es`;
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'NASA-Weather-App/1.0 (Educational Project)'
+    // ESTRATEGIA MULTI-NIVEL: Intentar con diferentes niveles de zoom
+    // zoom=18: muy específico (calle/edificio)
+    // zoom=14: ciudad/pueblo
+    // zoom=10: región amplia
+    
+    let bestResult = null;
+    const zooms = [18, 16, 14]; // De más específico a menos específico
+    
+    for (const zoom of zooms) {
+      try {
+        const url = `${NOMINATIM_API_URL}?lat=${lat}&lon=${lon}&format=json&accept-language=es&zoom=${zoom}&addressdetails=1`;
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'NASA-Weather-App/1.0 (Educational Project)'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          
+          if (data.address) {
+            // Extraer ciudad/pueblo específico
+            const city = data.address.city ||
+                        data.address.town ||
+                        data.address.village ||
+                        data.address.hamlet ||
+                        data.address.municipality;
+            
+            // Si encontramos una ciudad específica, guardarla como mejor resultado
+            if (city && !bestResult) {
+              bestResult = {
+                city: city,
+                county: data.address.county,
+                state: data.address.state,
+                country: data.address.country
+              };
+              // Si ya tenemos ciudad, no necesitamos seguir buscando
+              break;
+            }
+            
+            // Guardar cualquier resultado como fallback
+            if (!bestResult && data.address) {
+              bestResult = {
+                city: data.address.county || data.address.state,
+                country: data.address.country
+              };
+            }
+          }
+        }
+        
+        // Pequeña pausa entre peticiones para respetar rate limits
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+      } catch (zoomError) {
+        console.warn(`   ⚠️  Error con zoom ${zoom}:`, zoomError.message);
+        continue;
       }
-    });
-
-    if (!response.ok) {
-      console.warn(`⚠️  No se pudo obtener nombre de ubicación (HTTP ${response.status})`);
-      return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
     }
-
-    const data = await response.json();
-
-    // Extraer nombre más relevante
+    
+    // Construir nombre final
     let locationName = '';
     
-    if (data.address) {
-      // Prioridad: ciudad > pueblo > municipio > provincia
-      const city = data.address.city || 
-                   data.address.town || 
-                   data.address.village || 
-                   data.address.municipality ||
-                   data.address.county ||
-                   data.address.state;
-      
-      const country = data.address.country;
+    if (bestResult) {
+      const { city, country } = bestResult;
       
       if (city && country) {
         locationName = `${city}, ${country}`;
@@ -120,10 +157,13 @@ async function getLocationName(lat, lon) {
         locationName = city;
       } else if (country) {
         locationName = country;
-      } else {
-        locationName = data.display_name.split(',').slice(0, 2).join(',');
       }
-    } else {
+      
+      console.log(`   🔍 Debug: city=${city}, country=${country}`);
+    }
+    
+    // Fallback a coordenadas si no encontramos nada
+    if (!locationName) {
       locationName = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
     }
 
