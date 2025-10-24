@@ -24,9 +24,12 @@ const openai = new OpenAI({
 const PORT = 3000;
 const BASE_URL_DAILY = 'https://power.larc.nasa.gov/api/temporal/daily/point';
 const ELEVATION_API_URL = 'https://api.opentopodata.org/v1/srtm30m';
+const NOMINATIM_API_URL = 'https://nominatim.openstreetmap.org/reverse';
 
 // Cache simple de elevaciones para evitar consultas repetidas
 const elevationCache = new Map();
+// Cache de nombres de ubicaciones para evitar consultas repetidas
+const locationNameCache = new Map();
 
 /**
  * Obtiene elevación usando Open Topo Data (SRTM 30m)
@@ -65,6 +68,72 @@ async function getElevation(lat, lon) {
   } catch (error) {
     console.warn(`⚠️  Error obteniendo elevación: ${error.message}, usando 0m`);
     return 0;
+  }
+}
+
+/**
+ * Obtiene nombre de ubicación usando Nominatim (OpenStreetMap)
+ * SIN usar API de OpenAI - Servicio gratuito de geocodificación inversa
+ */
+async function getLocationName(lat, lon) {
+  const cacheKey = `${lat.toFixed(4)},${lon.toFixed(4)}`;
+
+  // Revisar cache primero
+  if (locationNameCache.has(cacheKey)) {
+    console.log(`   📍 Nombre (cache): ${locationNameCache.get(cacheKey)}`);
+    return locationNameCache.get(cacheKey);
+  }
+
+  try {
+    // Nominatim requiere User-Agent según sus políticas de uso
+    const url = `${NOMINATIM_API_URL}?lat=${lat}&lon=${lon}&format=json&accept-language=es`;
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'NASA-Weather-App/1.0 (Educational Project)'
+      }
+    });
+
+    if (!response.ok) {
+      console.warn(`⚠️  No se pudo obtener nombre de ubicación (HTTP ${response.status})`);
+      return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+    }
+
+    const data = await response.json();
+
+    // Extraer nombre más relevante
+    let locationName = '';
+    
+    if (data.address) {
+      // Prioridad: ciudad > pueblo > municipio > provincia
+      const city = data.address.city || 
+                   data.address.town || 
+                   data.address.village || 
+                   data.address.municipality ||
+                   data.address.county ||
+                   data.address.state;
+      
+      const country = data.address.country;
+      
+      if (city && country) {
+        locationName = `${city}, ${country}`;
+      } else if (city) {
+        locationName = city;
+      } else if (country) {
+        locationName = country;
+      } else {
+        locationName = data.display_name.split(',').slice(0, 2).join(',');
+      }
+    } else {
+      locationName = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+    }
+
+    locationNameCache.set(cacheKey, locationName);
+    console.log(`   📍 Nombre (Nominatim): ${locationName}`);
+    return locationName;
+
+  } catch (error) {
+    console.warn(`⚠️  Error obteniendo nombre de ubicación: ${error.message}`);
+    return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
   }
 }
 
@@ -1151,43 +1220,9 @@ const server = http.createServer(async (req, res) => {
         response.hourlyForecast = hourlyForecast;
       }
 
-      // Obtener nombre de ubicación
-      console.log('\n🌍 === Obteniendo nombre de ubicación ===');
-      let finalLocationName = `${parseFloat(lat)}, ${parseFloat(lon)}`;
-
-      // Si se proporcionó locationName en el query, usarlo directamente
-      if (locationName) {
-        finalLocationName = decodeURIComponent(locationName);
-        console.log(`✅ Usando nombre proporcionado: ${finalLocationName}`);
-      } else {
-        // Si no, obtener con OpenAI
-        try {
-          const locationPrompt = `Dadas estas coordenadas geográficas: latitud ${lat}, longitud ${lon}
-
-¿A qué ciudad, pueblo o región pertenecen estas coordenadas?
-
-Responde SOLAMENTE con el nombre de la ubicación en este formato:
-- Si es una ciudad conocida: "Ciudad, País" (ejemplo: "Cochabamba, Bolivia")
-- Si es un área rural: "Región/Provincia, País" (ejemplo: "Valle Alto, Bolivia")
-- Máximo 30 caracteres
-- Sin explicaciones adicionales`;
-
-          const locationResponse = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [
-              { role: 'system', content: 'Eres un experto en geografía que identifica ubicaciones por coordenadas.' },
-              { role: 'user', content: locationPrompt }
-            ],
-            temperature: 0.1,
-            max_tokens: 30
-          });
-
-          finalLocationName = locationResponse.choices[0].message.content.trim();
-          console.log(`✅ Ubicación identificada por IA: ${finalLocationName}`);
-        } catch (error) {
-          console.error('⚠️  Error obteniendo nombre de ubicación:', error.message);
-        }
-      }
+      // Obtener nombre de ubicación usando Nominatim (SIN OpenAI)
+      console.log('\n🌍 === Obteniendo nombre de ubicación (Nominatim) ===');
+      let finalLocationName = await getLocationName(parseFloat(lat), parseFloat(lon));
 
       // Clasificar clima con OpenAI
       console.log('\n🤖 === Clasificando clima con OpenAI ===');
