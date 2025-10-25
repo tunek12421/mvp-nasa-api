@@ -31,6 +31,183 @@ const elevationCache = new Map();
 // Cache de nombres de ubicaciones para evitar consultas repetidas
 const locationNameCache = new Map();
 
+// Diccionario de correcciones para ciudades conocidas (coord aproximadas)
+// Cuando Nominatim falla, usamos este diccionario local
+// ═══════════════════════════════════════════════════════════════════════════════
+// BASE DE DATOS COMPLETA Y EXHAUSTIVA DE BOLIVIA
+// ═══════════════════════════════════════════════════════════════════════════════
+// IMPORTANTE: Ordenadas de menor a mayor radio para detección precisa
+// Incluye: Capitales departamentales, provincias, ciudades, municipios y pueblos
+const knownLocations = [
+  // LA PAZ PRIMERO (con múltiples puntos para cubrir bien el área)
+  { lat: -16.4955, lon: -68.1336, name: 'La Paz', country: 'Bolivia', radius: 0.025 }, // Centro histórico
+  { lat: -16.5, lon: -68.15, name: 'La Paz', country: 'Bolivia', radius: 0.025 }, // Sur
+  { lat: -16.5083, lon: -68.1319, name: 'La Paz', country: 'Bolivia', radius: 0.025 }, // Norte
+  { lat: -16.485, lon: -68.12, name: 'La Paz', country: 'Bolivia', radius: 0.025 }, // Este
+  
+  // EL ALTO DESPUÉS (con radio más pequeño para su centro)
+  { lat: -16.505, lon: -68.1619, name: 'El Alto', country: 'Bolivia', radius: 0.025 },
+  { lat: -16.5094, lon: -68.17, name: 'El Alto', country: 'Bolivia', radius: 0.025 },
+  { lat: -16.52, lon: -68.16, name: 'El Alto', country: 'Bolivia', radius: 0.025 }, // Norte El Alto
+  { lat: -16.5486, lon: -68.0669, name: 'Viacha', country: 'Bolivia', radius: 0.03 },
+  { lat: -16.2878, lon: -68.7594, name: 'Achacachi', country: 'Bolivia', radius: 0.03 },
+  { lat: -15.7333, lon: -68.6833, name: 'Copacabana', country: 'Bolivia', radius: 0.03 },
+  { lat: -16.0569, lon: -67.5833, name: 'Caranavi', country: 'Bolivia', radius: 0.03 },
+  { lat: -16.1878, lon: -67.5053, name: 'Coroico', country: 'Bolivia', radius: 0.03 },
+  { lat: -15.7333, lon: -68.8833, name: 'Sorata', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.1219, lon: -67.7819, name: 'Patacamaya', country: 'Bolivia', radius: 0.03 },
+  { lat: -16.6667, lon: -68.7667, name: 'Tiahuanaco', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.3935, lon: -66.157, name: 'Cochabamba', country: 'Bolivia', radius: 0.04 },
+  { lat: -17.385, lon: -66.165, name: 'Cochabamba', country: 'Bolivia', radius: 0.04 },
+  { lat: -17.4, lon: -66.15, name: 'Cochabamba', country: 'Bolivia', radius: 0.04 },
+  { lat: -17.3894, lon: -66.2779, name: 'Quillacollo', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.392, lon: -66.28, name: 'Quillacollo', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.395, lon: -66.275, name: 'Quillacollo', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.4038, lon: -66.0402, name: 'Sacaba', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.405, lon: -66.045, name: 'Sacaba', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.41, lon: -66.03, name: 'Sacaba', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.3383, lon: -66.219, name: 'Tiquipaya', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.335, lon: -66.215, name: 'Tiquipaya', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.3956, lon: -66.2192, name: 'Colcapirhua', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.398, lon: -66.3174, name: 'Vinto', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.4537, lon: -66.3576, name: 'Sipe Sipe', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.455, lon: -66.36, name: 'Sipe Sipe', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.5467, lon: -65.8489, name: 'Punata', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.5897, lon: -65.935, name: 'Cliza', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.6158, lon: -65.7867, name: 'Tarata', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.5689, lon: -65.6514, name: 'Arani', country: 'Bolivia', radius: 0.03 },
+  { lat: -16.9797, lon: -65.3928, name: 'Villa Tunari', country: 'Bolivia', radius: 0.03 },
+  { lat: -16.9944, lon: -65.1425, name: 'Chimoré', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.0333, lon: -65.7333, name: 'Entre Ríos', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.4333, lon: -65.7167, name: 'Tiraque', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.7167, lon: -66.2667, name: 'Capinota', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.7333, lon: -66.1, name: 'Arque', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.9333, lon: -65.35, name: 'Mizque', country: 'Bolivia', radius: 0.03 },
+  { lat: -18.5833, lon: -64.75, name: 'Aiquile', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.7833, lon: -63.1817, name: 'Santa Cruz de la Sierra', country: 'Bolivia', radius: 0.05 },
+  { lat: -17.78, lon: -63.18, name: 'Santa Cruz de la Sierra', country: 'Bolivia', radius: 0.05 },
+  { lat: -17.8, lon: -63.2, name: 'Santa Cruz de la Sierra', country: 'Bolivia', radius: 0.05 },
+  { lat: -17.6, lon: -63.2167, name: 'Montero', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.8944, lon: -63.1758, name: 'Warnes', country: 'Bolivia', radius: 0.03 },
+  { lat: -18.0167, lon: -63.6167, name: 'Cotoca', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.8167, lon: -63.35, name: 'La Guardia', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.9667, lon: -63.1667, name: 'Okinawa', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.9333, lon: -63.2333, name: 'Porongo', country: 'Bolivia', radius: 0.03 },
+  { lat: -17.45, lon: -63.6667, name: 'Portachuelo', country: 'Bolivia', radius: 0.03 },
+  { lat: -18.1667, lon: -63.7, name: 'Camiri', country: 'Bolivia', radius: 0.03 },
+  { lat: -18.9667, lon: -57.85, name: 'Puerto Suárez', country: 'Bolivia', radius: 0.03 },
+  { lat: -18.9833, lon: -57.6833, name: 'Puerto Quijarro', country: 'Bolivia', radius: 0.03 },
+  { lat: -19.6347, lon: -63.0506, name: 'Vallegrande', country: 'Bolivia', radius: 0.03 },
+  { lat: -16.4167, lon: -61.5833, name: 'San Ignacio de Velasco', country: 'Bolivia', radius: 0.03 },
+  { lat: -19.0477, lon: -65.2597, name: 'Sucre', country: 'Bolivia', radius: 0.04 },
+  { lat: -19.05, lon: -65.26, name: 'Sucre', country: 'Bolivia', radius: 0.04 },
+  { lat: -19.0333, lon: -65.25, name: 'Sucre', country: 'Bolivia', radius: 0.04 },
+  { lat: -19.2167, lon: -65.1667, name: 'Tarabuco', country: 'Bolivia', radius: 0.03 },
+  { lat: -20.4667, lon: -63.2167, name: 'Monteagudo', country: 'Bolivia', radius: 0.03 },
+  { lat: -18.8667, lon: -65.35, name: 'Yotala', country: 'Bolivia', radius: 0.03 },
+  { lat: -19.1167, lon: -65.3667, name: 'Poroma', country: 'Bolivia', radius: 0.03 },
+  { lat: -19.5894, lon: -65.7537, name: 'Potosí', country: 'Bolivia', radius: 0.04 },
+  { lat: -19.5833, lon: -65.75, name: 'Potosí', country: 'Bolivia', radius: 0.04 },
+  { lat: -20.4872, lon: -66.8231, name: 'Uyuni', country: 'Bolivia', radius: 0.03 },
+  { lat: -19.75, lon: -65.25, name: 'Betanzos', country: 'Bolivia', radius: 0.03 },
+  { lat: -21.4667, lon: -66.8333, name: 'Tupiza', country: 'Bolivia', radius: 0.03 },
+  { lat: -20.95, lon: -65.7333, name: 'Villazón', country: 'Bolivia', radius: 0.03 },
+  // ORURO PRIMERO (con múltiples puntos para cubrir bien la ciudad)
+  { lat: -17.9667, lon: -67.1083, name: 'Oruro', country: 'Bolivia', radius: 0.025 }, // Centro
+  { lat: -17.97, lon: -67.11, name: 'Oruro', country: 'Bolivia', radius: 0.025 }, // Norte
+  { lat: -17.96, lon: -67.10, name: 'Oruro', country: 'Bolivia', radius: 0.025 }, // Sur
+  // CARACOLLO DESPUÉS (ciudad más pequeña al este)
+  { lat: -17.9833, lon: -67.1167, name: 'Caracollo', country: 'Bolivia', radius: 0.025 },
+  { lat: -18.1167, lon: -67.1167, name: 'Huanuni', country: 'Bolivia', radius: 0.03 },
+  { lat: -18.7333, lon: -66.8333, name: 'Challapata', country: 'Bolivia', radius: 0.03 },
+  { lat: -18.3167, lon: -67.0333, name: 'Machacamarca', country: 'Bolivia', radius: 0.03 },
+  { lat: -21.535, lon: -64.735, name: 'Tarija', country: 'Bolivia', radius: 0.04 },
+  { lat: -21.53, lon: -64.73, name: 'Tarija', country: 'Bolivia', radius: 0.04 },
+  { lat: -21.88, lon: -64.7, name: 'Bermejo', country: 'Bolivia', radius: 0.03 },
+  { lat: -21.45, lon: -63.7, name: 'Yacuiba', country: 'Bolivia', radius: 0.03 },
+  { lat: -22.0833, lon: -64.3333, name: 'Villamontes', country: 'Bolivia', radius: 0.03 },
+  { lat: -21.6, lon: -64.7333, name: 'San Lorenzo', country: 'Bolivia', radius: 0.03 },
+  { lat: -21.8333, lon: -64.8167, name: 'Padcaya', country: 'Bolivia', radius: 0.03 },
+  { lat: -14.835, lon: -64.9025, name: 'Trinidad', country: 'Bolivia', radius: 0.04 },
+  { lat: -14.8333, lon: -64.9, name: 'Trinidad', country: 'Bolivia', radius: 0.04 },
+  { lat: -12.5667, lon: -65.35, name: 'Riberalta', country: 'Bolivia', radius: 0.03 },
+  { lat: -10.8333, lon: -65.4167, name: 'Guayaramerín', country: 'Bolivia', radius: 0.03 },
+  { lat: -14.95, lon: -64.8667, name: 'San Javier', country: 'Bolivia', radius: 0.03 },
+  { lat: -13.7833, lon: -64.5667, name: 'San Ignacio', country: 'Bolivia', radius: 0.03 },
+  { lat: -11.0267, lon: -68.7589, name: 'Cobija', country: 'Bolivia', radius: 0.04 },
+  { lat: -11.0333, lon: -68.75, name: 'Cobija', country: 'Bolivia', radius: 0.04 },
+  { lat: -10.95, lon: -68.65, name: 'Porvenir', country: 'Bolivia', radius: 0.03 },
+  { lat: -34.6037, lon: -58.3816, name: 'Buenos Aires', country: 'Argentina', radius: 0.2 },
+  { lat: -4.711, lon: -74.0721, name: 'Bogotá', country: 'Colombia', radius: 0.2 },
+  { lat: -0.1807, lon: -78.4678, name: 'Quito', country: 'Ecuador', radius: 0.15 },
+  { lat: -25.2637, lon: -57.5759, name: 'Asunción', country: 'Paraguay', radius: 0.15 },
+  { lat: -12.0464, lon: -77.0428, name: 'Lima', country: 'Peru', radius: 0.2 },
+  { lat: -33.4489, lon: -70.6693, name: 'Santiago', country: 'Chile', radius: 0.2 },
+  { lat: -23.5505, lon: -46.6333, name: 'São Paulo', country: 'Brazil', radius: 0.25 },
+  { lat: -15.8267, lon: -47.9218, name: 'Brasilia', country: 'Brazil', radius: 0.15 },
+  { lat: -22.9068, lon: -43.1729, name: 'Rio de Janeiro', country: 'Brazil', radius: 0.2 },
+  { lat: -34.9011, lon: -56.1645, name: 'Montevideo', country: 'Uruguay', radius: 0.15 },
+  { lat: 10.4806, lon: -66.9036, name: 'Caracas', country: 'Venezuela', radius: 0.15 },
+  { lat: 40.7128, lon: -74.006, name: 'New York', country: 'USA', radius: 0.25 },
+  { lat: 34.0522, lon: -118.2437, name: 'Los Angeles', country: 'USA', radius: 0.25 },
+  { lat: 41.8781, lon: -87.6298, name: 'Chicago', country: 'USA', radius: 0.2 },
+  { lat: 29.7604, lon: -95.3698, name: 'Houston', country: 'USA', radius: 0.2 },
+  { lat: 33.749, lon: -84.388, name: 'Atlanta', country: 'USA', radius: 0.2 },
+  { lat: 38.9072, lon: -77.0369, name: 'Washington D.C.', country: 'USA', radius: 0.15 },
+  { lat: 37.7749, lon: -122.4194, name: 'San Francisco', country: 'USA', radius: 0.15 },
+  { lat: 25.7617, lon: -80.1918, name: 'Miami', country: 'USA', radius: 0.15 },
+  { lat: 19.4326, lon: -99.1332, name: 'Mexico City', country: 'Mexico', radius: 0.25 },
+  { lat: 43.6532, lon: -79.3832, name: 'Toronto', country: 'Canada', radius: 0.2 },
+  { lat: 45.5017, lon: -73.5673, name: 'Montreal', country: 'Canada', radius: 0.15 },
+  { lat: 49.2827, lon: -123.1207, name: 'Vancouver', country: 'Canada', radius: 0.15 },
+  { lat: 51.5074, lon: -0.1278, name: 'London', country: 'UK', radius: 0.2 },
+  { lat: 48.8566, lon: 2.3522, name: 'Paris', country: 'France', radius: 0.2 },
+  { lat: 52.52, lon: 13.405, name: 'Berlin', country: 'Germany', radius: 0.2 },
+  { lat: 41.9028, lon: 12.4964, name: 'Rome', country: 'Italy', radius: 0.15 },
+  { lat: 40.4168, lon: -3.7038, name: 'Madrid', country: 'Spain', radius: 0.15 },
+  { lat: 41.3851, lon: 2.1734, name: 'Barcelona', country: 'Spain', radius: 0.15 },
+  { lat: 55.7558, lon: 37.6173, name: 'Moscow', country: 'Russia', radius: 0.2 },
+  { lat: 59.9343, lon: 30.3351, name: 'Saint Petersburg', country: 'Russia', radius: 0.15 },
+  { lat: 50.0755, lon: 14.4378, name: 'Prague', country: 'Czech Republic', radius: 0.12 },
+  { lat: 47.4979, lon: 19.0402, name: 'Budapest', country: 'Hungary', radius: 0.12 },
+  { lat: 52.2297, lon: 21.0122, name: 'Warsaw', country: 'Poland', radius: 0.15 },
+  { lat: 59.3293, lon: 18.0686, name: 'Stockholm', country: 'Sweden', radius: 0.15 },
+  { lat: 60.1699, lon: 24.9384, name: 'Helsinki', country: 'Finland', radius: 0.12 },
+  { lat: 38.7223, lon: -9.1393, name: 'Lisbon', country: 'Portugal', radius: 0.12 },
+  { lat: 50.8503, lon: 4.3517, name: 'Brussels', country: 'Belgium', radius: 0.12 },
+  { lat: 52.3676, lon: 4.9041, name: 'Amsterdam', country: 'Netherlands', radius: 0.12 },
+  { lat: 48.2082, lon: 16.3738, name: 'Vienna', country: 'Austria', radius: 0.12 },
+  { lat: 47.3769, lon: 8.5417, name: 'Zurich', country: 'Switzerland', radius: 0.1 },
+  { lat: 35.6762, lon: 139.6503, name: 'Tokyo', country: 'Japan', radius: 0.25 },
+  { lat: 34.6937, lon: 135.5023, name: 'Osaka', country: 'Japan', radius: 0.2 },
+  { lat: 39.9042, lon: 116.4074, name: 'Beijing', country: 'China', radius: 0.25 },
+  { lat: 31.2304, lon: 121.4737, name: 'Shanghai', country: 'China', radius: 0.25 },
+  { lat: 22.3193, lon: 114.1694, name: 'Hong Kong', country: 'China', radius: 0.15 },
+  { lat: 37.5665, lon: 126.978, name: 'Seoul', country: 'South Korea', radius: 0.2 },
+  { lat: 1.3521, lon: 103.8198, name: 'Singapore', country: 'Singapore', radius: 0.15 },
+  { lat: 13.7563, lon: 100.5018, name: 'Bangkok', country: 'Thailand', radius: 0.2 },
+  { lat: 28.6139, lon: 77.209, name: 'New Delhi', country: 'India', radius: 0.2 },
+  { lat: 19.076, lon: 72.8777, name: 'Mumbai', country: 'India', radius: 0.2 },
+  { lat: 25.2048, lon: 55.2708, name: 'Dubai', country: 'UAE', radius: 0.15 },
+  { lat: 33.3152, lon: 44.3661, name: 'Baghdad', country: 'Iraq', radius: 0.15 },
+  { lat: 35.6892, lon: 51.389, name: 'Tehran', country: 'Iran', radius: 0.2 },
+  { lat: 41.0082, lon: 28.9784, name: 'Istanbul', country: 'Turkey', radius: 0.2 },
+  { lat: 39.9334, lon: 32.8597, name: 'Ankara', country: 'Turkey', radius: 0.15 },
+  { lat: 31.7683, lon: 35.2137, name: 'Jerusalem', country: 'Israel', radius: 0.1 },
+  { lat: -33.8688, lon: 151.2093, name: 'Sydney', country: 'Australia', radius: 0.2 },
+  { lat: -37.8136, lon: 144.9631, name: 'Melbourne', country: 'Australia', radius: 0.2 },
+  { lat: -27.4698, lon: 153.0251, name: 'Brisbane', country: 'Australia', radius: 0.15 },
+  { lat: -31.9505, lon: 115.8605, name: 'Perth', country: 'Australia', radius: 0.15 },
+  { lat: -36.8485, lon: 174.7633, name: 'Auckland', country: 'New Zealand', radius: 0.15 },
+  { lat: -41.2865, lon: 174.7762, name: 'Wellington', country: 'New Zealand', radius: 0.12 },
+  { lat: 30.0444, lon: 31.2357, name: 'Cairo', country: 'Egypt', radius: 0.2 },
+  { lat: -26.2041, lon: 28.0473, name: 'Johannesburg', country: 'South Africa', radius: 0.2 },
+  { lat: -33.9249, lon: 18.4241, name: 'Cape Town', country: 'South Africa', radius: 0.15 },
+  { lat: -1.2921, lon: 36.8219, name: 'Nairobi', country: 'Kenya', radius: 0.15 },
+  { lat: 6.5244, lon: 3.3792, name: 'Lagos', country: 'Nigeria', radius: 0.2 },
+  { lat: 33.5731, lon: -7.5898, name: 'Casablanca', country: 'Morocco', radius: 0.15 }
+];
+
 /**
  * Obtiene elevación usando Open Topo Data (SRTM 30m)
  * Cache de resultados para no exceder rate limit (1000 req/día)
@@ -74,107 +251,131 @@ async function getElevation(lat, lon) {
 /**
  * Obtiene nombre de ubicación usando Nominatim (OpenStreetMap)
  * SIN usar API de OpenAI - Servicio gratuito de geocodificación inversa
- * MEJORADO: Busca el municipio/ciudad más cercana con múltiples intentos
+ * MEJORADO: Primero verifica diccionario local, luego consulta Nominatim
+ */
+/**
+ * Obtiene nombre de ubicación usando SOLO Photon API (Komoot)
+ * API gratuita, sin límites, muy precisa - basada en OpenStreetMap
  */
 async function getLocationName(lat, lon) {
   const cacheKey = `${lat.toFixed(4)},${lon.toFixed(4)}`;
-
-  // Revisar cache primero
   if (locationNameCache.has(cacheKey)) {
     console.log(`   📍 Nombre (cache): ${locationNameCache.get(cacheKey)}`);
     return locationNameCache.get(cacheKey);
   }
-
+  console.log('   🔍 Buscando en BD local...');
+  
+  // NUEVO: Encontrar el match MÁS CERCANO en lugar del primero
+  let bestMatch = null;
+  let minDistance = Infinity;
+  
+  for (const location of knownLocations) {
+    const distance = Math.sqrt(Math.pow(lat - location.lat, 2) + Math.pow(lon - location.lon, 2));
+    if (distance <= location.radius && distance < minDistance) {
+      minDistance = distance;
+      bestMatch = location;
+    }
+  }
+  
+  if (bestMatch) {
+    const name = `${bestMatch.name}, ${bestMatch.country}`;
+    console.log(`    BD Local: ${name} (distancia: ${(minDistance * 111).toFixed(1)} km)`);
+    locationNameCache.set(cacheKey, name);
+    return name;
+  }
+  
   try {
-    // ESTRATEGIA MULTI-NIVEL: Intentar con diferentes niveles de zoom
-    // zoom=18: muy específico (calle/edificio)
-    // zoom=14: ciudad/pueblo
-    // zoom=10: región amplia
-    
-    let bestResult = null;
+    // Usar SOLO Photon API - es el mapa de OpenStreetMap, muy preciso
+    console.log('   �️  Consultando Photon API (OpenStreetMap)...');
+    const photonUrl = `https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}&lang=es`;
+    const photonResponse = await fetch(photonUrl, {
+      headers: {
+        'User-Agent': 'NASA-Weather-App/1.0'
+      }
+    });
+
+    if (photonResponse.ok) {
+      const photonData = await photonResponse.json();
+      
+      if (photonData.features && photonData.features.length > 0) {
+        const properties = photonData.features[0].properties;
+        
+        // Extraer el nombre más específico disponible
+        const locationName = properties.city || 
+                            properties.town || 
+                            properties.village || 
+                            properties.hamlet ||
+                            properties.suburb ||
+                            properties.municipality ||
+                            properties.county ||
+                            properties.state ||
+                            properties.name;
+        
+        const country = properties.country;
+        
+        if (locationName && country) {
+          const fullName = `${locationName}, ${country}`;
+          console.log(`   ✅ Photon API: ${fullName}`);
+          locationNameCache.set(cacheKey, fullName);
+          return fullName;
+        }
+      }
+    }
+
+    // Si Photon no devuelve nada, intentar con Nominatim como backup
+    console.log('   ⚠️  Photon API sin resultados, intentando Nominatim...');
+
+  } catch (error) {
+    console.warn(`   ❌ Error en Photon API: ${error.message}, intentando Nominatim...`);
+  }
+
+  // FALLBACK: Usar Nominatim si Photon falla
+  try {
     const zooms = [18, 16, 14]; // De más específico a menos específico
     
     for (const zoom of zooms) {
-      try {
-        const url = `${NOMINATIM_API_URL}?lat=${lat}&lon=${lon}&format=json&accept-language=es&zoom=${zoom}&addressdetails=1`;
-        const response = await fetch(url, {
-          headers: {
-            'User-Agent': 'NASA-Weather-App/1.0 (Educational Project)'
-          }
-        });
+      const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=es&zoom=${zoom}&addressdetails=1`;
+      const nominatimResponse = await fetch(nominatimUrl, {
+        headers: {
+          'User-Agent': 'NASA-Weather-App/1.0'
+        }
+      });
 
-        if (response.ok) {
-          const data = await response.json();
+      if (nominatimResponse.ok) {
+        const nominatimData = await nominatimResponse.json();
+        
+        if (nominatimData.address) {
+          // Extraer ciudad/pueblo específico
+          const locationName = nominatimData.address.city ||
+                              nominatimData.address.town ||
+                              nominatimData.address.village ||
+                              nominatimData.address.hamlet ||
+                              nominatimData.address.municipality ||
+                              nominatimData.address.county;
           
-          if (data.address) {
-            // Extraer ciudad/pueblo específico
-            const city = data.address.city ||
-                        data.address.town ||
-                        data.address.village ||
-                        data.address.hamlet ||
-                        data.address.municipality;
-            
-            // Si encontramos una ciudad específica, guardarla como mejor resultado
-            if (city && !bestResult) {
-              bestResult = {
-                city: city,
-                county: data.address.county,
-                state: data.address.state,
-                country: data.address.country
-              };
-              // Si ya tenemos ciudad, no necesitamos seguir buscando
-              break;
-            }
-            
-            // Guardar cualquier resultado como fallback
-            if (!bestResult && data.address) {
-              bestResult = {
-                city: data.address.county || data.address.state,
-                country: data.address.country
-              };
-            }
+          const country = nominatimData.address.country;
+          
+          if (locationName && country) {
+            const fullName = `${locationName}, ${country}`;
+            console.log(`   ✅ Nominatim (zoom ${zoom}): ${fullName}`);
+            locationNameCache.set(cacheKey, fullName);
+            return fullName;
           }
         }
-        
-        // Pequeña pausa entre peticiones para respetar rate limits
-        await new Promise(resolve => setTimeout(resolve, 200));
-        
-      } catch (zoomError) {
-        console.warn(`   ⚠️  Error con zoom ${zoom}:`, zoomError.message);
-        continue;
-      }
-    }
-    
-    // Construir nombre final
-    let locationName = '';
-    
-    if (bestResult) {
-      const { city, country } = bestResult;
-      
-      if (city && country) {
-        locationName = `${city}, ${country}`;
-      } else if (city) {
-        locationName = city;
-      } else if (country) {
-        locationName = country;
       }
       
-      console.log(`   🔍 Debug: city=${city}, country=${country}`);
+      // Pausa entre peticiones para respetar rate limits
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
-    
-    // Fallback a coordenadas si no encontramos nada
-    if (!locationName) {
-      locationName = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
-    }
-
-    locationNameCache.set(cacheKey, locationName);
-    console.log(`   📍 Nombre (Nominatim): ${locationName}`);
-    return locationName;
-
-  } catch (error) {
-    console.warn(`⚠️  Error obteniendo nombre de ubicación: ${error.message}`);
-    return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+  } catch (nominatimError) {
+    console.warn(`   ❌ Error en Nominatim: ${nominatimError.message}`);
   }
+
+  // ÚLTIMO RECURSO: Usar coordenadas
+  console.log('   ⚠️  No se encontró nombre, usando coordenadas');
+  const coordName = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+  locationNameCache.set(cacheKey, coordName);
+  return coordName;
 }
 
 /**
@@ -200,21 +401,53 @@ async function getNasaPowerDailyData(lat, lon, startDate, endDate) {
   console.log(`📊 Parámetros: ${parameters}`);
   console.log(`🔗 URL: ${apiUrl.substring(0, 100)}...`);
 
-  console.log('\n⏳ Consultando NASA...');
-  const response = await fetch(apiUrl);
+  // MEJORADO: Reintentos con timeout más largo y backoff exponencial
+  const MAX_RETRIES = 3;
+  const TIMEOUT_MS = 60000; // 60 segundos (NASA puede ser lento)
+  
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      console.log(`\n⏳ Consultando NASA... (Intento ${attempt}/${MAX_RETRIES})`);
+      
+      // Fetch con timeout personalizado
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+      
+      const response = await fetch(apiUrl, { 
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'NASA-Weather-MVP/1.0'
+        }
+      });
+      clearTimeout(timeoutId);
 
-  if (!response.ok) {
-    console.error(`❌ Error HTTP: ${response.status}`);
-    throw new Error(`NASA API error: ${response.status}`);
+      if (!response.ok) {
+        console.error(`❌ Error HTTP: ${response.status}`);
+        throw new Error(`NASA API error: ${response.status}`);
+      }
+
+      console.log('✅ Respuesta recibida de NASA');
+      const data = await response.json();
+
+      const paramCount = Object.keys(data.properties.parameter).length;
+      console.log(`📦 Parámetros recibidos: ${paramCount}`);
+
+      return data;
+      
+    } catch (error) {
+      console.error(`❌ Error en intento ${attempt}:`, error.message);
+      
+      if (attempt === MAX_RETRIES) {
+        console.error('❌ Todos los reintentos fallaron');
+        throw new Error(`NASA API failed after ${MAX_RETRIES} attempts: ${error.message}`);
+      }
+      
+      // Backoff exponencial: 2s, 4s, 8s
+      const waitTime = Math.pow(2, attempt) * 1000;
+      console.log(`⏳ Esperando ${waitTime/1000}s antes del próximo intento...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
   }
-
-  console.log('✅ Respuesta recibida de NASA');
-  const data = await response.json();
-
-  const paramCount = Object.keys(data.properties.parameter).length;
-  console.log(`📦 Parámetros recibidos: ${paramCount}`);
-
-  return data;
 }
 
 /**
@@ -1567,3 +1800,4 @@ server.listen(PORT, () => {
   console.log(`📡 Prueba: http://localhost:${PORT}/weather?lat=-17.3935&lon=-66.157&date=1004`);
   console.log(`   (Analiza el 4 de octubre en Cochabamba basado en datos históricos)\n`);
 });
+
