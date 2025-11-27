@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setDefaultDate();
   initChatbot();
   initTechnicalToggle();
+  initChatToggle();
 });
 
 // Initialize Leaflet map
@@ -684,6 +685,23 @@ function initTechnicalToggle() {
     toggleBtn.innerHTML = content.classList.contains('hidden')
       ? '📊 Mostrar datos técnicos e históricos <span class="toggle-icon">▼</span>'
       : '📊 Ocultar datos técnicos e históricos <span class="toggle-icon">▲</span>';
+  });
+}
+
+// Initialize chat toggle functionality
+function initChatToggle() {
+  const toggleBtn = document.getElementById('chat-toggle-btn');
+  const closeBtn = document.getElementById('chat-close-btn');
+  const chatWindow = document.getElementById('chat-window');
+
+  toggleBtn.addEventListener('click', () => {
+    chatWindow.classList.remove('hidden');
+    toggleBtn.style.display = 'none';
+  });
+
+  closeBtn.addEventListener('click', () => {
+    chatWindow.classList.add('hidden');
+    toggleBtn.style.display = 'flex';
   });
 }
 

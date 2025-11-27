@@ -305,40 +305,61 @@
         </div>
       </section>
 
-      <!-- Chatbot Section -->
-      <section class="chatbot-section">
-        <div class="card chatbot-card">
-          <h3>🤖 Asistente Climático con IA</h3>
-          <p class="chatbot-description">Pregúntame sobre el clima y las predicciones. Puedo analizar los datos de la ubicación actual.</p>
+      <!-- Chatbot Floating Button -->
+      <button id="chat-toggle-btn" class="chat-toggle-btn" title="Abrir chat">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+      </button>
 
-          <div id="chat-messages" class="chat-messages">
-            <div class="chat-message bot-message">
-              <div class="message-avatar">🤖</div>
-              <div class="message-content">
-                <p>¡Hola! Soy tu asistente climático. Puedo ayudarte a entender las predicciones meteorológicas basadas en datos históricos de la NASA.</p>
-                <p>Escribe el nombre de una ciudad y opcionalmente una fecha/hora. Por ejemplo: "clima en Cochabamba mañana a las 3pm"</p>
-              </div>
+      <!-- Chatbot Floating Window -->
+      <div id="chat-window" class="chat-window hidden">
+        <div class="chat-header">
+          <div class="chat-header-content">
+            <span class="chat-header-icon">🤖</span>
+            <div>
+              <h3>Asistente Climático</h3>
+              <p class="chat-status">En línea</p>
             </div>
           </div>
+          <button id="chat-close-btn" class="chat-close-btn" title="Cerrar chat">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
 
-          <div class="chat-input-container">
-            <input
-              type="text"
-              id="chat-input"
-              placeholder="Pregunta sobre el clima..."
-              class="chat-input"
-            >
-            <button id="send-chat-btn" class="btn btn-primary btn-chat">
-              Enviar
-            </button>
-          </div>
-
-          <div id="chat-loading" class="loading hidden">
-            <div class="spinner"></div>
-            <p>Analizando datos y generando respuesta...</p>
+        <div id="chat-messages" class="chat-messages">
+          <div class="chat-message bot-message">
+            <div class="message-avatar">🤖</div>
+            <div class="message-content">
+              <p>¡Hola! Soy tu asistente climático. Puedo ayudarte a entender las predicciones meteorológicas basadas en datos históricos de la NASA.</p>
+              <p>Escribe el nombre de una ciudad y opcionalmente una fecha/hora. Por ejemplo: "clima en Cochabamba mañana a las 3pm"</p>
+            </div>
           </div>
         </div>
-      </section>
+
+        <div id="chat-loading" class="loading hidden">
+          <div class="spinner"></div>
+          <p>Analizando datos...</p>
+        </div>
+
+        <div class="chat-input-container">
+          <input
+            type="text"
+            id="chat-input"
+            placeholder="Pregunta sobre el clima..."
+            class="chat-input"
+          >
+          <button id="send-chat-btn" class="btn btn-primary btn-chat">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </div>
+      </div>
     </main>
 
     <!-- Footer -->
