@@ -16,10 +16,16 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Configurar OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// Configurar OpenAI (opcional)
+let openai = null;
+if (process.env.OPENAI_API_KEY) {
+  openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY
+  });
+  console.log('✅ OpenAI configurado');
+} else {
+  console.log('⚠️  OpenAI no configurado - funcionalidades básicas disponibles');
+}
 
 const PORT = 3000;
 const BASE_URL_DAILY = 'https://power.larc.nasa.gov/api/temporal/daily/point';
@@ -1497,20 +1503,21 @@ const server = http.createServer(async (req, res) => {
       console.log('\n🌍 === Obteniendo nombre de ubicación (Nominatim) ===');
       let finalLocationName = await getLocationName(parseFloat(lat), parseFloat(lon));
 
-      // Clasificar clima con OpenAI
-      console.log('\n🤖 === Clasificando clima con OpenAI ===');
-      try {
-        // Si hay pronóstico horario, usar esa temperatura específica
-        let temperatureContext = '';
-        if (hourlyForecast) {
-          temperatureContext = `- Temperatura a las ${hourlyForecast.hour}:00: ${hourlyForecast.temperature.expected}°C
+      // Clasificar clima con OpenAI (si está disponible)
+      if (openai) {
+        console.log('\n🤖 === Clasificando clima con OpenAI ===');
+        try {
+          // Si hay pronóstico horario, usar esa temperatura específica
+          let temperatureContext = '';
+          if (hourlyForecast) {
+            temperatureContext = `- Temperatura a las ${hourlyForecast.hour}:00: ${hourlyForecast.temperature.expected}°C
 - Rango horario: ${hourlyForecast.temperature.range.min}°C - ${hourlyForecast.temperature.range.max}°C`;
-        } else {
-          temperatureContext = `- Temperatura máxima del día: ${analysis.trendPrediction.tempMax}°C
+          } else {
+            temperatureContext = `- Temperatura máxima del día: ${analysis.trendPrediction.tempMax}°C
 - Temperatura mínima del día: ${analysis.trendPrediction.tempMin}°C`;
-        }
+          }
 
-        const classificationPrompt = `Analiza estos datos climáticos y elige SOLO UNA de estas categorías según lo que sea más relevante:
+          const classificationPrompt = `Analiza estos datos climáticos y elige SOLO UNA de estas categorías según lo que sea más relevante:
 
 DATOS:
 ${temperatureContext}
@@ -1536,35 +1543,40 @@ IMPORTANTE:
 - Responde SOLAMENTE con una de estas palabras exactas: "muy caluroso", "muy frío", "muy ventoso", "muy húmedo", "agradable"
 - NO inventes otras palabras`;
 
-        const aiClassification = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: 'Eres un clasificador de clima que SOLO responde con una de las categorías exactas proporcionadas.' },
-            { role: 'user', content: classificationPrompt }
-          ],
-          temperature: 0.3,
-          max_tokens: 20
-        });
+          const aiClassification = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: 'Eres un clasificador de clima que SOLO responde con una de las categorías exactas proporcionadas.' },
+              { role: 'user', content: classificationPrompt }
+            ],
+            temperature: 0.3,
+            max_tokens: 20
+          });
 
-        const classification = aiClassification.choices[0].message.content.trim().toLowerCase();
-        console.log(`✅ Clasificación: ${classification}`);
+          const classification = aiClassification.choices[0].message.content.trim().toLowerCase();
+          console.log(`✅ Clasificación: ${classification}`);
 
-        // Mapear clasificación a emoji
-        const emojiMap = {
-          'muy caluroso': '🥵',
-          'muy frío': '🥶',
-          'muy ventoso': '💨',
-          'muy húmedo': '💧',
-          'agradable': '😊'
-        };
+          // Mapear clasificación a emoji
+          const emojiMap = {
+            'muy caluroso': '🥵',
+            'muy frío': '🥶',
+            'muy ventoso': '💨',
+            'muy húmedo': '💧',
+            'agradable': '😊'
+          };
 
-        const weatherEmoji = emojiMap[classification] || '🌡️';
-        response.weatherEmoji = weatherEmoji;
-        response.weatherClassification = classification;
+          const weatherEmoji = emojiMap[classification] || '🌡️';
+          response.weatherEmoji = weatherEmoji;
+          response.weatherClassification = classification;
 
-        console.log(`📊 Emoji seleccionado: ${weatherEmoji}`);
-      } catch (error) {
-        console.error('❌ Error en clasificación OpenAI:', error.message);
+          console.log(`📊 Emoji seleccionado: ${weatherEmoji}`);
+        } catch (error) {
+          console.error('❌ Error en clasificación OpenAI:', error.message);
+          response.weatherEmoji = '🌡️';
+          response.weatherClassification = 'normal';
+        }
+      } else {
+        // Sin OpenAI, usar clasificación básica
         response.weatherEmoji = '🌡️';
         response.weatherClassification = 'normal';
       }
@@ -1611,6 +1623,16 @@ IMPORTANTE:
 
         console.log(`\n🤖 === CHATBOT: Nueva consulta ===`);
         console.log(`💬 Mensaje: ${message}`);
+
+        // Verificar que OpenAI esté disponible
+        if (!openai) {
+          res.writeHead(503, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            error: 'El chatbot requiere OpenAI API key. Configure OPENAI_API_KEY en el archivo .env',
+            tip: 'El endpoint /weather funciona sin OpenAI'
+          }));
+          return;
+        }
 
         // Usar OpenAI para extraer ubicación, fecha y hora del mensaje
         console.log(`🔍 Analizando mensaje para extraer ubicación, fecha y hora...`);
