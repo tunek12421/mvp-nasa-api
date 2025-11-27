@@ -7,7 +7,7 @@ import url from 'url';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { validatePrediction, getValidationSummary } from './validation.js';
 import dotenv from 'dotenv';
 
@@ -16,15 +16,15 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Configurar OpenAI (opcional)
-let openai = null;
-if (process.env.OPENAI_API_KEY) {
-  openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-  });
-  console.log('✅ OpenAI configurado');
+// Configurar Gemini AI (opcional)
+let genAI = null;
+let model = null;
+if (process.env.GEMINI_API_KEY) {
+  genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+  console.log('✅ Gemini AI configurado (gemini-pro)');
 } else {
-  console.log('⚠️  OpenAI no configurado - funcionalidades básicas disponibles');
+  console.log('⚠️  AI no configurada - funcionalidades básicas disponibles');
 }
 
 const PORT = 3000;
@@ -1684,9 +1684,9 @@ const server = http.createServer(async (req, res) => {
       console.log('\n🌍 === Obteniendo nombre de ubicación (Nominatim) ===');
       let finalLocationName = await getLocationName(parseFloat(lat), parseFloat(lon));
 
-      // Clasificar clima con OpenAI (si está disponible)
-      if (openai) {
-        console.log('\n🤖 === Clasificando clima con OpenAI ===');
+      // Clasificar clima con Gemini (si está disponible)
+      if (model) {
+        console.log('\n🤖 === Clasificando clima con Gemini ===');
         try {
           // Si hay pronóstico horario, usar esa temperatura específica
           let temperatureContext = '';
@@ -1698,7 +1698,7 @@ const server = http.createServer(async (req, res) => {
 - Temperatura mínima del día: ${analysis.trendPrediction.tempMin}°C`;
           }
 
-          const classificationPrompt = `Analiza estos datos climáticos y elige SOLO UNA de estas categorías según lo que sea más relevante:
+          const classificationPrompt = `Analiza estos datos climáticos y elige SOLO UNA de estas categorías según lo que sea más relevante para la PERCEPCIÓN GENERAL DEL DÍA:
 
 DATOS:
 ${temperatureContext}
@@ -1708,14 +1708,17 @@ ${temperatureContext}
 ${hourlyForecast ? `- Probabilidad de lluvia: ${hourlyForecast.precipitation.probability}%` : ''}
 
 CATEGORÍAS DISPONIBLES (elige SOLO UNA, la más relevante):
-1. muy caluroso → temperatura >28°C
-2. muy frío → temperatura <12°C
+1. muy caluroso → temperatura MÁXIMA >28°C (el día es caluroso)
+2. muy frío → temperatura MÁXIMA <12°C (el día es frío todo el tiempo)
 3. muy ventoso → viento promedio >7 m/s O viento máximo >10 m/s
 4. muy húmedo → humedad >75%
-5. agradable → temperatura entre 12-28°C, viento <7 m/s, humedad <75%, sin lluvia significativa
+5. agradable → temperatura máxima entre 12-28°C, viento <7 m/s, humedad <75%, sin lluvia significativa
 
 REGLAS DE PRIORIDAD:
-- Si la temperatura es >28°C o <12°C, prioriza esa categoría
+- Usa la temperatura MÁXIMA para decidir si es caluroso o frío (la mínima solo indica si habrá frío en la madrugada)
+- Si la temperatura MÁXIMA es >28°C, usa "muy caluroso"
+- Si la temperatura MÁXIMA es <12°C, usa "muy frío" (día frío todo el tiempo)
+- Si la temperatura MÁXIMA está entre 12-28°C pero hay frío en la madrugada, usa "agradable" (no "muy frío")
 - Si el viento es extremo (>7 m/s promedio), usa "muy ventoso"
 - Si la humedad es >75%, usa "muy húmedo"
 - Si NINGÚN factor es extremo, usa "agradable"
@@ -1724,17 +1727,10 @@ IMPORTANTE:
 - Responde SOLAMENTE con una de estas palabras exactas: "muy caluroso", "muy frío", "muy ventoso", "muy húmedo", "agradable"
 - NO inventes otras palabras`;
 
-          const aiClassification = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [
-              { role: 'system', content: 'Eres un clasificador de clima que SOLO responde con una de las categorías exactas proporcionadas.' },
-              { role: 'user', content: classificationPrompt }
-            ],
-            temperature: 0.3,
-            max_tokens: 20
-          });
+          const aiClassificationResult = await model.generateContent(classificationPrompt);
+          const aiClassificationResponse = await aiClassificationResult.response;
 
-          const classification = aiClassification.choices[0].message.content.trim().toLowerCase();
+          const classification = aiClassificationResponse.text().trim().toLowerCase();
           console.log(`✅ Clasificación: ${classification}`);
 
           // Mapear clasificación a emoji
@@ -1752,12 +1748,12 @@ IMPORTANTE:
 
           console.log(`📊 Emoji seleccionado: ${weatherEmoji}`);
         } catch (error) {
-          console.error('❌ Error en clasificación OpenAI:', error.message);
+          console.error('❌ Error en clasificación Gemini:', error.message);
           response.weatherEmoji = '🌡️';
           response.weatherClassification = 'normal';
         }
       } else {
-        // Sin OpenAI, usar clasificación básica
+        // Sin Gemini, usar clasificación básica
         response.weatherEmoji = '🌡️';
         response.weatherClassification = 'normal';
       }
@@ -1805,24 +1801,33 @@ IMPORTANTE:
         console.log(`\n🤖 === CHATBOT: Nueva consulta ===`);
         console.log(`💬 Mensaje: ${message}`);
 
-        // Verificar que OpenAI esté disponible
-        if (!openai) {
+        // Verificar que Gemini esté disponible
+        if (!model) {
           res.writeHead(503, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
-            error: 'El chatbot requiere OpenAI API key. Configure OPENAI_API_KEY en el archivo .env',
-            tip: 'El endpoint /weather funciona sin OpenAI'
+            error: 'El chatbot requiere Gemini API key. Configure GEMINI_API_KEY en el archivo .env',
+            tip: 'El endpoint /weather funciona sin IA'
           }));
           return;
         }
 
-        // Usar OpenAI para extraer ubicación, fecha y hora del mensaje
+        // Usar Gemini para extraer ubicación, fecha y hora del mensaje
         console.log(`🔍 Analizando mensaje para extraer ubicación, fecha y hora...`);
+
+        // Obtener fecha actual
+        const now = new Date();
+        const monthNames = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+                           'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+        const currentDay = now.getDate();
+        const currentMonth = monthNames[now.getMonth()];
+        const currentYear = now.getFullYear();
+        const todayFormatted = `${currentDay} de ${currentMonth} de ${currentYear}`;
 
         const extractionPrompt = `Analiza este mensaje del usuario y extrae la siguiente información:
 
 MENSAJE: "${message}"
 
-FECHA DE HOY: 5 de octubre de 2025
+FECHA DE HOY: ${todayFormatted}
 
 Extrae:
 1. UBICACIÓN (ciudad, país o región mencionada)
@@ -1842,25 +1847,18 @@ Ejemplos:
 - "¿Qué temperatura habrá hoy en La Paz a las 5 de la tarde?" → {"location": "La Paz", "date": "1005", "hour": "17", "query": "temperatura hoy a las 5 PM"}
 - "clima en Buenos Aires mañana" → {"location": "Buenos Aires", "date": "1006", "hour": null, "query": "clima mañana"}`;
 
-        const extractionResponse = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: 'Eres un asistente que extrae información estructurada de mensajes en lenguaje natural. Respondes SOLO con JSON válido.' },
-            { role: 'user', content: extractionPrompt }
-          ],
-          temperature: 0.1,
-          max_tokens: 150
-        });
+        const extractionResult = await model.generateContent(extractionPrompt);
+        const extractionResponse = await extractionResult.response;
 
         let extractedData;
         try {
-          const responseText = extractionResponse.choices[0].message.content.trim();
+          const responseText = extractionResponse.text().trim();
           // Remover markdown code blocks si existen
           const jsonText = responseText.replace(/```json\n?|\n?```/g, '').trim();
           extractedData = JSON.parse(jsonText);
           console.log(`✅ Datos extraídos:`, extractedData);
         } catch (parseError) {
-          console.error('❌ Error parseando respuesta de OpenAI:', parseError.message);
+          console.error('❌ Error parseando respuesta de Gemini:', parseError.message);
           extractedData = { location: null, date: null, hour: null, query: message };
         }
 
@@ -1879,18 +1877,11 @@ Responde ÚNICAMENTE en formato JSON:
 
 Ejemplo: {"lat": -17.3935, "lon": -66.157}`;
 
-          const coordsResponse = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [
-              { role: 'system', content: 'Eres un experto en geografía. Respondes SOLO con JSON válido de coordenadas.' },
-              { role: 'user', content: coordsPrompt }
-            ],
-            temperature: 0.1,
-            max_tokens: 50
-          });
+          const coordsResult = await model.generateContent(coordsPrompt);
+          const coordsResponse = await coordsResult.response;
 
           try {
-            const coordsText = coordsResponse.choices[0].message.content.trim();
+            const coordsText = coordsResponse.text().trim();
             const coordsJson = coordsText.replace(/```json\n?|\n?```/g, '').trim();
             const coords = JSON.parse(coordsJson);
             lat = coords.lat;

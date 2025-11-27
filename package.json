@@ -12,6 +12,7 @@
   "license": "ISC",
   "description": "MVP para probar NASA POWER API",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "dotenv": "^17.2.3",
     "openai": "^6.1.0"
   }
