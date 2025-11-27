@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARAWAN - Selector de Ubicación Preciso</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Roboto', sans-serif; }
+        #map { height: 100vh; width: 100%; z-index: 1; }
+        .info-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 400px;
+            background: white;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            z-index: 1000;
+            display: none;
+            text-align: center;
+            animation: slideUp 0.3s ease-out;
+        }
+        @keyframes slideUp {
+            from { bottom: -100px; opacity: 0; }
+            to { bottom: 20px; opacity: 1; }
+        }
+        .location-name {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .location-sub {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 15px;
+        }
+        .data-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 12px;
+        }
+        .data-item strong { display: block; font-size: 1.1rem; color: #2c3e50; }
+        .data-item span { font-size: 0.8rem; color: #7f8c8d; text-transform: uppercase; letter-spacing: 1px; }
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="infoPanel" class="info-panel">
+        <div class="location-name">
+            📍 <span id="placeName">Cargando ubicación...</span>
+        </div>
+        <div class="location-sub" id="placeSub">
+            Buscando detalles...
+        </div>
+        <div class="data-grid">
+            <div class="data-item">
+                <strong id="tempVal">--°C</strong>
+                <span>Temperatura</span>
+            </div>
+            <div class="data-item">
+                <strong id="dateVal">--/--</strong>
+                <span>Fecha</span>
+            </div>
+        </div>
+        <div id="rawData" style="margin-top:15px; font-size:0.85rem; color:#888; text-align:left; word-break:break-all;"></div>
+    </div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script>
+        const map = L.map('map').setView([-17.3935, -66.1570], 6);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        let currentMarker = null;
+
+        map.on('click', async function(e) {
+            const lat = e.latlng.lat;
+            const lon = e.latlng.lng;
+            if (currentMarker) {
+                currentMarker.setLatLng(e.latlng);
+            } else {
+                currentMarker = L.marker(e.latlng).addTo(map);
+            }
+            mostrarPanelCarga();
+            const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=12&addressdetails=1&accept-language=es`;
+            try {
+                const response = await fetch(url, {
+                    headers: { 'User-Agent': 'ArawanApp/1.0' }
+                });
+                const data = await response.json();
+                const infoLugar = procesarNombreLugar(data.address);
+                actualizarPanel(infoLugar, lat, lon, data.address);
+            } catch (error) {
+                console.error("Error al obtener nombre:", error);
+                document.getElementById('placeName').innerText = "Ubicación desconocida";
+            }
+        });
+
+        function procesarNombreLugar(address) {
+            if (!address) return { principal: "Desconocido", secundario: "" };
+            let nombrePrincipal =
+                address.village ||
+                address.town ||
+                address.city ||
+                address.county ||
+                address.municipality ||
+                address.hamlet ||
+                address.locality ||
+                address.state_district ||
+                address.state ||
+                address.region ||
+                address.country ||
+                "Ubicación seleccionada";
+            let nombreSecundario =
+                address.state ||
+                address.region ||
+                address.country ||
+                "";
+            return {
+                principal: nombrePrincipal,
+                secundario: nombreSecundario
+            };
+        }
+
+        function mostrarPanelCarga() {
+            const panel = document.getElementById('infoPanel');
+            panel.style.display = 'block';
+            document.getElementById('placeName').innerHTML = 'Identificando lugar <div class="loader"></div>';
+            document.getElementById('placeSub').innerText = 'Consultando satélite...';
+            document.getElementById('tempVal').innerText = '--';
+            document.getElementById('dateVal').innerText = '--/--';
+            document.getElementById('rawData').innerText = '';
+        }
+
+        function actualizarPanel(info, lat, lon, rawAddress) {
+            document.getElementById('placeName').innerText = info.principal;
+            const sub = info.secundario ? `${info.secundario}, Bolivia` : 'Bolivia';
+            document.getElementById('placeSub').innerText = sub;
+            // Simulación de clima, reemplaza por tu API si lo deseas
+            const tempSimulada = (20 + (lat * 0.5)).toFixed(1); 
+            const fecha = new Date();
+            const opciones = { day: 'numeric', month: 'long' };
+            document.getElementById('tempVal').innerText = `${Math.abs(tempSimulada)}°C`;
+            document.getElementById('dateVal').innerText = fecha.toLocaleDateString('es-ES', opciones);
+            // Mostrar todos los datos crudos de OSM para depuración
+            document.getElementById('rawData').innerText = "Datos completos OSM:\n" + JSON.stringify(rawAddress, null, 2);
+        }
+    </script>
+</body>
+</html>
