@@ -675,17 +675,17 @@ body::after {
 
 .simple-alert.alert-success {
   border-left-color: var(--success-color);
-  background: rgba(16, 185, 129, 0.05);
+  background: rgba(16, 185, 129, 0.25);
 }
 
 .simple-alert.alert-warning {
   border-left-color: var(--warning-color);
-  background: rgba(245, 158, 11, 0.05);
+  background: rgba(245, 158, 11, 0.25);
 }
 
 .simple-alert.alert-danger {
   border-left-color: var(--danger-color);
-  background: rgba(239, 68, 68, 0.05);
+  background: rgba(239, 68, 68, 0.25);
 }
 
 .simple-alert-icon {
@@ -694,7 +694,9 @@ body::after {
 
 .simple-alert-text {
   font-size: 1rem;
-  color: var(--text-color);
+  color: #ffffff;
+  font-weight: 500;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .simple-alert-content {
@@ -705,12 +707,16 @@ body::after {
 
 .simple-alert-content strong {
   font-size: 1rem;
-  color: var(--text-color);
+  color: #ffffff;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .simple-alert-content span {
   font-size: 0.9rem;
-  color: var(--text-muted);
+  color: #e5e7eb;
+  font-weight: 400;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 /* Technical Section */
