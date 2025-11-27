@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initEventListeners();
   setDefaultDate();
   initChatbot();
+  initTechnicalToggle();
 });
 
 // Initialize Leaflet map
@@ -202,8 +203,14 @@ function displayResults(data) {
     document.getElementById('hourly-section').classList.add('hidden');
   }
 
-  // Risk scores
-  displayRiskScores(data.analysis.riskScores);
+  // Alertas simples (solo las importantes)
+  displaySimpleAlerts(data.analysis.alerts);
+
+  // Alertas detalladas (en sección técnica)
+  displayAlerts(data.analysis.alerts);
+
+  // Datos históricos (en sección técnica)
+  displayHistoricalData(data.analysis.historicalData);
 
   // Temperature stats
   displayTemperatureStats(data.analysis);
@@ -215,36 +222,48 @@ function displayResults(data) {
   displayStatsTable(data.analysis);
 }
 
-// Display risk scores
-function displayRiskScores(riskScores) {
-  const risks = [
-    { id: 'frost', data: riskScores.frost },
-    { id: 'storm', data: riskScores.storm },
-    { id: 'heat', data: riskScores.heatStress }
+// Display transparent alerts
+function displayAlerts(alerts) {
+  const alertConfigs = [
+    { id: 'frost', data: alerts.frost },
+    { id: 'rain', data: alerts.rain },
+    { id: 'heat', data: alerts.heat },
+    { id: 'wind', data: alerts.wind }
   ];
 
-  risks.forEach(({ id, data }) => {
-    const card = document.getElementById(`${id}-risk`);
-    const level = data.level.toLowerCase();
+  alertConfigs.forEach(({ id, data }) => {
+    const card = document.getElementById(`${id}-alert`);
 
-    // Update card styling
-    card.className = 'risk-card risk-' + level;
+    // Update card styling based on level
+    card.className = 'alert-card alert-' + data.level;
 
-    // Update score
-    document.getElementById(`${id}-score`).textContent = data.score;
-
-    // Update level
-    document.getElementById(`${id}-level`).textContent = data.level;
-
-    // Update recommendations
-    const recList = document.getElementById(`${id}-recommendations`);
-    recList.innerHTML = '';
-    data.recommendations.forEach(rec => {
-      const li = document.createElement('li');
-      li.textContent = rec;
-      recList.appendChild(li);
-    });
+    // Update content
+    document.getElementById(`${id}-title`).textContent = data.title;
+    document.getElementById(`${id}-description`).textContent = data.description;
+    document.getElementById(`${id}-data`).textContent = data.data;
   });
+}
+
+// Display historical data
+function displayHistoricalData(historicalData) {
+  // Precipitación
+  document.getElementById('precip-avg').textContent = `${historicalData.precipitation.avg} mm`;
+  document.getElementById('precip-detail').textContent =
+    `Rango: ${historicalData.precipitation.min}-${historicalData.precipitation.max}mm | Días con >5mm: ${historicalData.precipitation.daysWithHeavyRain}/${historicalData.precipitation.totalDays}`;
+
+  // Viento
+  document.getElementById('wind-avg').textContent = `${historicalData.windMax.avg} m/s`;
+  document.getElementById('wind-detail').textContent =
+    `~${historicalData.windMax.avgKmh} km/h | Rango: ${historicalData.windMax.min}-${historicalData.windMax.max} m/s`;
+
+  // Humedad
+  document.getElementById('humidity-avg').textContent = `${historicalData.humidity.avg}%`;
+  document.getElementById('humidity-detail').textContent =
+    `Rango: ${historicalData.humidity.min}%-${historicalData.humidity.max}%`;
+
+  // Amplitud térmica
+  document.getElementById('thermal-range').textContent = `${historicalData.thermalAmplitude.avg}°C`;
+  document.getElementById('thermal-detail').textContent = historicalData.thermalAmplitude.description;
 }
 
 // Display temperature statistics
@@ -252,22 +271,51 @@ function displayTemperatureStats(analysis) {
   const trend = analysis.trendPrediction;
 
   // Max temperature
-  document.getElementById('temp-max-pred').textContent =
-    `${trend.tempMax}°C`;
+  document.getElementById('temp-max-pred').textContent = `${trend.tempMax}°C`;
   document.getElementById('temp-max-trend').textContent =
     `Tendencia: ${trend.trend.max.slope > 0 ? '+' : ''}${trend.trend.max.slope}°C/año`;
 
   // Min temperature
-  document.getElementById('temp-min-pred').textContent =
-    `${trend.tempMin}°C`;
+  document.getElementById('temp-min-pred').textContent = `${trend.tempMin}°C`;
   document.getElementById('temp-min-trend').textContent =
     `Tendencia: ${trend.trend.min.slope > 0 ? '+' : ''}${trend.trend.min.slope}°C/año`;
 
-  // Average temperature
-  document.getElementById('temp-avg').textContent =
-    `${analysis.temperature.statistics.mean}°C`;
+  // Precipitación - USAR PREDICCIÓN en lugar de promedio histórico
+  const rainPredicted = trend.precipitation;
+  document.getElementById('rain-value').textContent = `${rainPredicted.toFixed(1)}mm`;
+  let rainContext = '';
+  if (rainPredicted < 1) rainContext = 'Muy baja';
+  else if (rainPredicted < 5) rainContext = 'Baja';
+  else if (rainPredicted < 10) rainContext = 'Moderada';
+  else rainContext = 'Alta';
+  document.getElementById('rain-context').textContent = rainContext;
+
+  // Viento - USAR PREDICCIÓN (convertir de m/s a km/h)
+  const windPredicted = trend.windMax;
+  const windKmh = (windPredicted * 3.6).toFixed(0);
+  document.getElementById('wind-value').textContent = `${windKmh} km/h`;
+  let windContext = '';
+  if (windPredicted < 5) windContext = 'Calma';
+  else if (windPredicted < 10) windContext = 'Normal';
+  else if (windPredicted < 15) windContext = 'Moderado';
+  else windContext = 'Fuerte';
+  document.getElementById('wind-context').textContent = windContext;
+
+  // Humedad - USAR PREDICCIÓN
+  const humidityPredicted = trend.humidity;
+  document.getElementById('humidity-value').textContent = `${humidityPredicted.toFixed(0)}%`;
+  let humidityContext = '';
+  if (humidityPredicted < 40) humidityContext = 'Seco';
+  else if (humidityPredicted < 60) humidityContext = 'Normal';
+  else if (humidityPredicted < 75) humidityContext = 'Húmedo';
+  else humidityContext = 'Muy húmedo';
+  document.getElementById('humidity-context').textContent = humidityContext;
+
+  // Amplitud térmica
+  const amplitude = trend.tempMax - trend.tempMin;
+  document.getElementById('temp-amplitude').textContent = `${amplitude.toFixed(1)}°C`;
   document.getElementById('temp-range').textContent =
-    `Rango: ${analysis.temperature.statistics.min}°C - ${analysis.temperature.statistics.max}°C`;
+    `Diferencia entre máx y mín`;
 }
 
 // Display charts
@@ -515,5 +563,66 @@ function displayStickman(classification) {
     stickmanContainer.classList.remove('hidden');
   } else {
     stickmanContainer.classList.add('hidden');
+  }
+}
+
+// Initialize technical section toggle
+function initTechnicalToggle() {
+  const toggleBtn = document.getElementById('technical-toggle');
+  const content = document.getElementById('technical-content');
+  const icon = toggleBtn.querySelector('.toggle-icon');
+
+  toggleBtn.addEventListener('click', () => {
+    content.classList.toggle('hidden');
+    icon.textContent = content.classList.contains('hidden') ? '▼' : '▲';
+    toggleBtn.innerHTML = content.classList.contains('hidden')
+      ? '📊 Mostrar datos técnicos e históricos <span class="toggle-icon">▼</span>'
+      : '📊 Ocultar datos técnicos e históricos <span class="toggle-icon">▲</span>';
+  });
+}
+
+// Display simple alerts (only warnings/dangers)
+function displaySimpleAlerts(alerts) {
+  const container = document.getElementById('simple-alerts');
+  container.innerHTML = '';
+
+  // Filtrar solo alertas importantes (warning o danger)
+  const importantAlerts = [];
+
+  if (alerts.frost.level === 'warning' || alerts.frost.level === 'danger') {
+    importantAlerts.push({ icon: '❄️', ...alerts.frost });
+  }
+  if (alerts.rain.level === 'warning' || alerts.rain.level === 'danger') {
+    importantAlerts.push({ icon: '⛈️', ...alerts.rain });
+  }
+  if (alerts.heat.level === 'warning' || alerts.heat.level === 'danger') {
+    importantAlerts.push({ icon: '🌡️', ...alerts.heat });
+  }
+  if (alerts.wind.level === 'warning' || alerts.wind.level === 'danger') {
+    importantAlerts.push({ icon: '💨', ...alerts.wind });
+  }
+
+  if (importantAlerts.length === 0) {
+    // Todo bien, mostrar mensaje positivo
+    container.innerHTML = `
+      <div class="simple-alert alert-success">
+        <span class="simple-alert-icon">✅</span>
+        <span class="simple-alert-text">Condiciones normales para esta fecha</span>
+      </div>
+    `;
+  } else {
+    // Mostrar alertas importantes
+    importantAlerts.forEach(alert => {
+      const alertEl = document.createElement('div');
+      alertEl.className = `simple-alert alert-${alert.level}`;
+      alertEl.innerHTML = `
+        <span class="simple-alert-icon">${alert.icon}</span>
+        <div class="simple-alert-content">
+          <strong>${alert.title}</strong>
+          <span>${alert.description}</span>
+        </div>
+      `;
+      container.appendChild(alertEl);
+    });
   }
 }

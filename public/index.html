@@ -116,79 +116,60 @@
           </div>
         </div>
 
-        <!-- Risk Scores -->
-        <div class="risk-section">
-          <h3>⚠️ Evaluación de Riesgos</h3>
-          <div class="risk-grid">
-            <div class="risk-card" id="frost-risk">
-              <div class="risk-header">
-                <span class="risk-icon">❄️</span>
-                <span class="risk-title">Helada</span>
-              </div>
-              <div class="risk-score">
-                <div class="score-circle">
-                  <span class="score-value" id="frost-score">--</span>
-                </div>
-              </div>
-              <div class="risk-level" id="frost-level">--</div>
-              <ul class="risk-recommendations" id="frost-recommendations"></ul>
-            </div>
-
-            <div class="risk-card" id="storm-risk">
-              <div class="risk-header">
-                <span class="risk-icon">⛈️</span>
-                <span class="risk-title">Tormenta</span>
-              </div>
-              <div class="risk-score">
-                <div class="score-circle">
-                  <span class="score-value" id="storm-score">--</span>
-                </div>
-              </div>
-              <div class="risk-level" id="storm-level">--</div>
-              <ul class="risk-recommendations" id="storm-recommendations"></ul>
-            </div>
-
-            <div class="risk-card" id="heat-risk">
-              <div class="risk-header">
-                <span class="risk-icon">🌡️</span>
-                <span class="risk-title">Estrés Térmico</span>
-              </div>
-              <div class="risk-score">
-                <div class="score-circle">
-                  <span class="score-value" id="heat-score">--</span>
-                </div>
-              </div>
-              <div class="risk-level" id="heat-level">--</div>
-              <ul class="risk-recommendations" id="heat-recommendations"></ul>
-            </div>
-          </div>
+        <!-- Alertas Simples -->
+        <div class="simple-alerts" id="simple-alerts">
+          <!-- Las alertas solo aparecen si hay algo importante que avisar -->
         </div>
 
-        <!-- Temperature Stats -->
+        <!-- Weather Stats -->
         <div class="stats-section">
-          <h3>🌡️ Estadísticas de Temperatura</h3>
+          <h3>🌤️ Condiciones del Día</h3>
           <div class="stats-grid">
             <div class="stat-card">
-              <div class="stat-icon">📈</div>
+              <div class="stat-icon">🌡️</div>
               <div class="stat-content">
-                <span class="stat-label">Máxima Esperada</span>
+                <span class="stat-label">Temperatura Máxima</span>
                 <span class="stat-value" id="temp-max-pred">--°C</span>
                 <span class="stat-detail" id="temp-max-trend"></span>
               </div>
             </div>
             <div class="stat-card">
-              <div class="stat-icon">📉</div>
+              <div class="stat-icon">🌡️</div>
               <div class="stat-content">
-                <span class="stat-label">Mínima Esperada</span>
+                <span class="stat-label">Temperatura Mínima</span>
                 <span class="stat-value" id="temp-min-pred">--°C</span>
                 <span class="stat-detail" id="temp-min-trend"></span>
               </div>
             </div>
             <div class="stat-card">
-              <div class="stat-icon">📊</div>
+              <div class="stat-icon">💧</div>
               <div class="stat-content">
-                <span class="stat-label">Promedio Histórico</span>
-                <span class="stat-value" id="temp-avg">--°C</span>
+                <span class="stat-label">Precipitación</span>
+                <span class="stat-value" id="rain-value">--mm</span>
+                <span class="stat-detail" id="rain-context">--</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">💨</div>
+              <div class="stat-content">
+                <span class="stat-label">Viento</span>
+                <span class="stat-value" id="wind-value">--km/h</span>
+                <span class="stat-detail" id="wind-context">--</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">💦</div>
+              <div class="stat-content">
+                <span class="stat-label">Humedad</span>
+                <span class="stat-value" id="humidity-value">--%</span>
+                <span class="stat-detail" id="humidity-context">--</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">☀️</div>
+              <div class="stat-content">
+                <span class="stat-label">Amplitud Térmica</span>
+                <span class="stat-value" id="temp-amplitude">--°C</span>
                 <span class="stat-detail" id="temp-range"></span>
               </div>
             </div>
@@ -203,26 +184,122 @@
           </div>
         </div>
 
-        <!-- Detailed Stats -->
-        <div class="detailed-stats">
-          <div class="card">
-            <h3>📋 Estadísticas Detalladas</h3>
-            <div class="stats-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Variable</th>
-                    <th>Media</th>
-                    <th>Mediana</th>
-                    <th>Mín</th>
-                    <th>Máx</th>
-                    <th>Desv. Est.</th>
-                  </tr>
-                </thead>
-                <tbody id="stats-table-body">
-                </tbody>
-              </table>
+        <!-- Sección Técnica (Colapsable) -->
+        <div class="technical-section">
+          <button class="technical-toggle" id="technical-toggle">
+            📊 Mostrar datos técnicos e históricos
+            <span class="toggle-icon">▼</span>
+          </button>
+
+          <div class="technical-content hidden" id="technical-content">
+
+            <!-- Alertas Detalladas -->
+            <div class="alerts-detailed">
+              <h3>⚠️ Análisis Detallado de Condiciones</h3>
+              <div class="alerts-grid">
+                <div class="alert-card" id="frost-alert">
+                  <div class="alert-icon">❄️</div>
+                  <div class="alert-content">
+                    <div class="alert-title" id="frost-title">Analizando heladas...</div>
+                    <div class="alert-description" id="frost-description">--</div>
+                    <div class="alert-data" id="frost-data">--</div>
+                  </div>
+                </div>
+
+                <div class="alert-card" id="rain-alert">
+                  <div class="alert-icon">⛈️</div>
+                  <div class="alert-content">
+                    <div class="alert-title" id="rain-title">Analizando precipitación...</div>
+                    <div class="alert-description" id="rain-description">--</div>
+                    <div class="alert-data" id="rain-data">--</div>
+                  </div>
+                </div>
+
+                <div class="alert-card" id="heat-alert">
+                  <div class="alert-icon">🌡️</div>
+                  <div class="alert-content">
+                    <div class="alert-title" id="heat-title">Analizando temperatura...</div>
+                    <div class="alert-description" id="heat-description">--</div>
+                    <div class="alert-data" id="heat-data">--</div>
+                  </div>
+                </div>
+
+                <div class="alert-card" id="wind-alert">
+                  <div class="alert-icon">💨</div>
+                  <div class="alert-content">
+                    <div class="alert-title" id="wind-title">Analizando viento...</div>
+                    <div class="alert-description" id="wind-description">--</div>
+                    <div class="alert-data" id="wind-data">--</div>
+                  </div>
+                </div>
+              </div>
             </div>
+
+            <!-- Datos Históricos -->
+            <div class="weather-data-section">
+              <h3>🌦️ Datos Climáticos Históricos (30 años)</h3>
+              <div class="weather-data-grid">
+                <div class="data-card">
+                  <div class="data-header">
+                    <span class="data-icon">💧</span>
+                    <span class="data-label">Precipitación</span>
+                  </div>
+                  <div class="data-value" id="precip-avg">-- mm</div>
+                  <div class="data-detail" id="precip-detail">--</div>
+                </div>
+
+                <div class="data-card">
+                  <div class="data-header">
+                    <span class="data-icon">💨</span>
+                    <span class="data-label">Viento Máximo</span>
+                  </div>
+                  <div class="data-value" id="wind-avg">-- m/s</div>
+                  <div class="data-detail" id="wind-detail">--</div>
+                </div>
+
+                <div class="data-card">
+                  <div class="data-header">
+                    <span class="data-icon">💦</span>
+                    <span class="data-label">Humedad Relativa</span>
+                  </div>
+                  <div class="data-value" id="humidity-avg">--%</div>
+                  <div class="data-detail" id="humidity-detail">--</div>
+                </div>
+
+                <div class="data-card">
+                  <div class="data-header">
+                    <span class="data-icon">🌡️</span>
+                    <span class="data-label">Amplitud Térmica</span>
+                  </div>
+                  <div class="data-value" id="thermal-range">--°C</div>
+                  <div class="data-detail" id="thermal-detail">--</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tabla de Estadísticas -->
+            <div class="detailed-stats">
+              <div class="card">
+                <h3>📋 Estadísticas Detalladas</h3>
+                <div class="stats-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Variable</th>
+                        <th>Media</th>
+                        <th>Mediana</th>
+                        <th>Mín</th>
+                        <th>Máx</th>
+                        <th>Desv. Est.</th>
+                      </tr>
+                    </thead>
+                    <tbody id="stats-table-body">
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </section>

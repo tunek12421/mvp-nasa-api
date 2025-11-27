@@ -899,14 +899,53 @@ function calculateDailyProbabilities(data, targetDate, elevation = 0, lat = null
   const tempMaxTrend = calculateTrend(tempMaxData, currentYear);
   const tempMinTrend = calculateTrend(tempMinData, currentYear);
 
+  // Calcular tendencias para otras variables también
+  const windMaxData = getDailyValuesWithYear('WS2M_MAX');
+  const humidityData = getDailyValuesWithYear('RH2M');
+  const rainData = getDailyValuesWithYear('PRECTOTCORR');
+
+  const windMaxTrend = calculateTrend(windMaxData, currentYear);
+  const humidityTrend = calculateTrend(humidityData, currentYear);
+  const rainTrend = calculateTrend(rainData, currentYear);
+
   console.log(`   📈 Tendencia Temp Max: ${tempMaxTrend.slope > 0 ? '+' : ''}${tempMaxTrend.slope}°C/año (R²=${tempMaxTrend.rSquared})`);
   console.log(`   📈 Tendencia Temp Min: ${tempMinTrend.slope > 0 ? '+' : ''}${tempMinTrend.slope}°C/año (R²=${tempMinTrend.rSquared})`);
+  console.log(`   📈 Tendencia Viento Max: ${windMaxTrend.slope > 0 ? '+' : ''}${windMaxTrend.slope} m/s/año (R²=${windMaxTrend.rSquared})`);
+  console.log(`   📈 Tendencia Humedad: ${humidityTrend.slope > 0 ? '+' : ''}${humidityTrend.slope}%/año (R²=${humidityTrend.rSquared})`);
+  console.log(`   📈 Tendencia Lluvia: ${rainTrend.slope > 0 ? '+' : ''}${rainTrend.slope} mm/año (R²=${rainTrend.rSquared})`);
 
   console.log(`   🌡️  Temp Max: ${tempMaxValues.length} años`);
   console.log(`   🌡️  Temp Min: ${tempMinValues.length} años`);
   console.log(`   💨 Viento: ${windMaxValues.length} años`);
   console.log(`   💧 Humedad: ${humidityValues.length} años`);
   console.log(`   🌧️  Lluvia: ${rainValues.length} años`);
+
+  // Calcular weighted averages para otras variables también
+  const weightedWindMax = windMaxData.map(d => {
+    const yearDiff = currentYear + (targetMonth - 1) / 12 - d.year;
+    const weight = Math.exp(-yearDiff / 3);
+    return { value: d.value, weight: weight };
+  });
+
+  const weightedHumidity = humidityData.map(d => {
+    const yearDiff = currentYear + (targetMonth - 1) / 12 - d.year;
+    const weight = Math.exp(-yearDiff / 3);
+    return { value: d.value, weight: weight };
+  });
+
+  const weightedRain = rainData.map(d => {
+    const yearDiff = currentYear + (targetMonth - 1) / 12 - d.year;
+    const weight = Math.exp(-yearDiff / 3);
+    return { value: d.value, weight: weight };
+  });
+
+  const sumWeightsWind = weightedWindMax.reduce((sum, item) => sum + item.weight, 0);
+  const sumWeightsHumidity = weightedHumidity.reduce((sum, item) => sum + item.weight, 0);
+  const sumWeightsRain = weightedRain.reduce((sum, item) => sum + item.weight, 0);
+
+  const weightedAvgWind = weightedWindMax.reduce((sum, item) => sum + (item.value * item.weight), 0) / sumWeightsWind;
+  const weightedAvgHumidity = weightedHumidity.reduce((sum, item) => sum + (item.value * item.weight), 0) / sumWeightsHumidity;
+  const weightedAvgRain = weightedRain.reduce((sum, item) => sum + (item.value * item.weight), 0) / sumWeightsRain;
 
   // Calcular estadísticas completas para cada parámetro
   console.log('\n🔢 === PASO 3: Calculando estadísticas ===');
@@ -1032,6 +1071,62 @@ function calculateDailyProbabilities(data, targetDate, elevation = 0, lat = null
   console.log(`   Confianza Temp Max: ${tempMaxConfidence.level} (${tempMaxConfidence.score}%)`);
   console.log(`   Confianza Temp Min: ${tempMinConfidence.level} (${tempMinConfidence.score}%)`);
 
+  // PREDICCIONES PARA VIENTO, HUMEDAD Y LLUVIA usando mismo modelo híbrido
+  // Calcular predicciones con mismo método: 40% weighted avg + 35% tendencia + 25% percentil reciente
+
+  // VIENTO MÁXIMO
+  const trendWind = windMaxTrend.slope * currentYear + windMaxTrend.intercept;
+  const recent3YearsWind = windMaxData.filter(d => d.year >= currentYear - 3).map(d => d.value);
+  const recentP60Wind = recent3YearsWind.length > 0 ? calculatePercentile(recent3YearsWind, 60) : windMaxStats.percentiles.p50;
+  let predictedWindMax = (weightedAvgWind * 0.40) + (trendWind * 0.35) + (recentP60Wind * 0.25);
+  // Sin ajustes estacionales para viento en Bolivia (no hay patrón marcado)
+
+  // HUMEDAD
+  const trendHumidity = humidityTrend.slope * currentYear + humidityTrend.intercept;
+  const recent3YearsHumidity = humidityData.filter(d => d.year >= currentYear - 3).map(d => d.value);
+  const recentP60Humidity = recent3YearsHumidity.length > 0 ? calculatePercentile(recent3YearsHumidity, 60) : humidityStats.percentiles.p50;
+  let predictedHumidity = (weightedAvgHumidity * 0.40) + (trendHumidity * 0.35) + (recentP60Humidity * 0.25);
+  // Aplicar ajuste estacional para humedad
+  predictedHumidity *= seasonalAdj.humidity;
+  predictedHumidity = Math.max(0, Math.min(100, predictedHumidity)); // Limitar 0-100%
+
+  // PRECIPITACIÓN
+  const trendRain = rainTrend.slope * currentYear + rainTrend.intercept;
+  const recent3YearsRain = rainData.filter(d => d.year >= currentYear - 3).map(d => d.value);
+  const recentP60Rain = recent3YearsRain.length > 0 ? calculatePercentile(recent3YearsRain, 60) : rainStats.percentiles.p50;
+  let predictedRain = (weightedAvgRain * 0.40) + (trendRain * 0.35) + (recentP60Rain * 0.25);
+  // Aplicar ajuste estacional para lluvia (crítico en Bolivia)
+  predictedRain *= seasonalAdj.precip;
+  predictedRain = Math.max(0, predictedRain); // No puede ser negativa
+
+  console.log(`\n   💨 Viento Max predicho: ${predictedWindMax.toFixed(2)} m/s (${(predictedWindMax * 3.6).toFixed(1)} km/h) vs mediana: ${windMaxStats.median.toFixed(2)} m/s`);
+  console.log(`   💧 Humedad predicha: ${predictedHumidity.toFixed(1)}% vs mediana: ${humidityStats.median.toFixed(1)}% (ajuste estacional: ${seasonalAdj.humidity}x)`);
+  console.log(`   🌧️  Lluvia predicha: ${predictedRain.toFixed(2)} mm vs mediana: ${rainStats.median.toFixed(2)} mm (ajuste estacional: ${seasonalAdj.precip}x)`);
+
+  // Calcular confianza de las predicciones
+  const windConfidence = calculatePredictionConfidence(
+    windMaxTrend.rSquared,
+    windMaxValues.length,
+    windMaxStats.stdDev,
+    { min: windMaxStats.min, max: windMaxStats.max }
+  );
+  const humidityConfidence = calculatePredictionConfidence(
+    humidityTrend.rSquared,
+    humidityValues.length,
+    humidityStats.stdDev,
+    { min: humidityStats.min, max: humidityStats.max }
+  );
+  const rainConfidence = calculatePredictionConfidence(
+    rainTrend.rSquared,
+    rainValues.length,
+    rainStats.stdDev,
+    { min: rainStats.min, max: rainStats.max }
+  );
+
+  console.log(`   Confianza Viento: ${windConfidence.level} (${windConfidence.score}%)`);
+  console.log(`   Confianza Humedad: ${humidityConfidence.level} (${humidityConfidence.score}%)`);
+  console.log(`   Confianza Lluvia: ${rainConfidence.level} (${rainConfidence.score}%)`);
+
   // NOTA: NASA POWER ya incluye ajuste por elevación del punto consultado
   // No aplicamos corrección adicional (los datos satelitales ya están calibrados)
   const elevationCorrection = 0; // Sin corrección (datos ya ajustados)
@@ -1088,72 +1183,130 @@ function calculateDailyProbabilities(data, targetDate, elevation = 0, lat = null
   console.log(`   💧 Muy húmedo (>${thresholds.veryHumid}%): ${probVeryHumid.toFixed(1)}% (ajuste estacional: ${seasonalAdj.humidity}x)`);
   console.log(`   🌧️  Lluvia intensa (>${thresholds.heavyRain}mm): ${probHeavyRain.toFixed(1)}% (ajuste estacional: ${seasonalAdj.precip}x)`);
 
-  // COMPOUND RISK SCORES
-  // Combinar múltiples variables para evaluar riesgos específicos
-  console.log('\n⚠️  === PASO 5: Calculando Risk Scores Compuestos ===');
+  // ALERTAS TRANSPARENTES BASADAS EN DATOS HISTÓRICOS
+  console.log('\n⚠️  === PASO 5: Generando Alertas Climáticas Transparentes ===');
 
-  // Risk Score: HELADA (frost)
-  // Factores: temp mín baja + humedad alta + viento bajo
-  const frostRiskRaw = (
-    Math.max(0, (10 - predictedTempMin)) * 50 +  // Peso 50%: más riesgo si temp < 10°C
-    (humidityStats.mean) * 0.3 +                  // Peso 30%: humedad alta aumenta riesgo
-    Math.max(0, (5 - windAvgStats.mean)) * 20     // Peso 20%: viento bajo aumenta riesgo
-  );
-  const frostRisk = Math.min(100, frostRiskRaw); // Cap a 100
+  // Calcular estadísticas históricas para alertas
+  const minTempEverRecorded = tempMinValues.reduce((min, v) => Math.min(min, v.value), Infinity);
+  const maxTempEverRecorded = tempMaxValues.reduce((max, v) => Math.max(max, v.value), -Infinity);
+  const daysWithFrost = tempMinValues.filter(v => v.value < 0).length;
+  const daysWithHeavyRain = rainValues.filter(v => v.value > 5).length;
+  const maxRainRecorded = rainValues.reduce((max, v) => Math.max(max, v.value), 0);
+  const maxWindRecorded = windMaxValues.reduce((max, v) => Math.max(max, v.value), 0);
 
-  // Risk Score: TORMENTA (storm)
-  // Factores: lluvia alta + viento alto + humedad alta
-  const stormRiskRaw = (
-    probHeavyRain * 0.5 +                         // Peso 50%: probabilidad de lluvia
-    (windMaxStats.mean / 15) * 30 +               // Peso 30%: viento fuerte
-    (humidityStats.mean / 100) * 20               // Peso 20%: humedad alta
-  );
-  const stormRisk = Math.min(100, stormRiskRaw);
-
-  // Risk Score: ESTRÉS TÉRMICO (heat stress)
-  // Factores: temp alta + humedad alta + viento bajo
-  const heatStressRiskRaw = (
-    Math.max(0, (predictedTempMax - 30)) * 3 +    // Peso alto: cada °C sobre 30°C
-    (humidityStats.mean / 100) * 30 +             // Peso 30%: humedad dificulta enfriamiento
-    Math.max(0, (5 - windAvgStats.mean)) * 10     // Peso 10%: viento bajo empeora
-  );
-  const heatStressRisk = Math.min(100, heatStressRiskRaw);
-
-  const getRiskLevel = (score) => {
-    if (score >= 70) return 'ALTO';
-    if (score >= 40) return 'MEDIO';
-    return 'BAJO';
-  };
-
-  const getRiskRecommendations = (riskType, score) => {
-    const recommendations = {
-      frost: {
-        ALTO: ['Cubrir cultivos sensibles', 'Implementar calefacción nocturna', 'Evitar riego en la tarde'],
-        MEDIO: ['Monitorear temperaturas nocturnas', 'Preparar coberturas'],
-        BAJO: ['Sin acción necesaria']
-      },
-      storm: {
-        ALTO: ['Asegurar estructuras', 'Postponer actividades al aire libre', 'Revisar drenajes'],
-        MEDIO: ['Monitorear condiciones', 'Tener plan de contingencia'],
-        BAJO: ['Sin precauciones especiales']
-      },
-      heat: {
-        ALTO: ['Aumentar frecuencia de riego', 'Aplicar mulch', 'Evitar trabajo pesado en horas pico'],
-        MEDIO: ['Monitorear estrés hídrico', 'Riego temprano/tarde'],
-        BAJO: ['Manejo normal']
-      }
+  // Alerta de HELADA
+  let frostAlert = {};
+  if (predictedTempMin < 0) {
+    frostAlert = {
+      level: 'danger',
+      title: 'Alto riesgo de helada',
+      description: `Temperatura mínima esperada: ${predictedTempMin.toFixed(1)}°C`,
+      data: `Histórico: ${daysWithFrost}/${tempMinValues.length} años con helada. Mínima registrada: ${minTempEverRecorded.toFixed(1)}°C`
     };
-    return recommendations[riskType][getRiskLevel(score)];
-  };
+  } else if (predictedTempMin < 5) {
+    frostAlert = {
+      level: 'warning',
+      title: 'Temperatura baja, posible helada',
+      description: `Temperatura mínima esperada: ${predictedTempMin.toFixed(1)}°C`,
+      data: `Histórico: ${daysWithFrost}/${tempMinValues.length} años con helada. Mínima registrada: ${minTempEverRecorded.toFixed(1)}°C`
+    };
+  } else {
+    frostAlert = {
+      level: 'success',
+      title: 'Sin riesgo de helada',
+      description: `Temperatura mínima esperada: ${predictedTempMin.toFixed(1)}°C`,
+      data: `Histórico: ${daysWithFrost}/${tempMinValues.length} años con helada en esta fecha. Mínima registrada: ${minTempEverRecorded.toFixed(1)}°C`
+    };
+  }
 
-  console.log(`   ❄️  Riesgo Helada: ${frostRisk.toFixed(1)}/100 (${getRiskLevel(frostRisk)})`);
-  console.log(`   ⛈️  Riesgo Tormenta: ${stormRisk.toFixed(1)}/100 (${getRiskLevel(stormRisk)})`);
-  console.log(`   🌡️  Riesgo Estrés Térmico: ${heatStressRisk.toFixed(1)}/100 (${getRiskLevel(heatStressRisk)})`);
+  // Alerta de PRECIPITACIÓN
+  let rainAlert = {};
+  const avgRain = rainStats.mean;
+  if (avgRain > 10) {
+    rainAlert = {
+      level: 'danger',
+      title: 'Alta probabilidad de lluvia intensa',
+      description: `Precipitación esperada: ${avgRain.toFixed(1)}mm`,
+      data: `Histórico: ${daysWithHeavyRain}/${rainValues.length} años con >5mm. Máxima: ${maxRainRecorded.toFixed(1)}mm`
+    };
+  } else if (avgRain > 2) {
+    rainAlert = {
+      level: 'info',
+      title: 'Lluvia ligera a moderada',
+      description: `Precipitación esperada: ${avgRain.toFixed(1)}mm`,
+      data: `Histórico: ${daysWithHeavyRain}/${rainValues.length} años con >5mm. Máxima: ${maxRainRecorded.toFixed(1)}mm`
+    };
+  } else {
+    rainAlert = {
+      level: 'success',
+      title: 'Precipitación mínima',
+      description: `Precipitación esperada: ${avgRain.toFixed(1)}mm (muy baja)`,
+      data: `Histórico: ${daysWithHeavyRain}/${rainValues.length} años con lluvia >5mm. Máxima registrada: ${maxRainRecorded.toFixed(1)}mm`
+    };
+  }
+
+  // Alerta de CALOR
+  let heatAlert = {};
+  if (predictedTempMax > 35) {
+    heatAlert = {
+      level: 'danger',
+      title: 'Calor extremo',
+      description: `Temperatura máxima esperada: ${predictedTempMax.toFixed(1)}°C`,
+      data: `Histórico: Máxima registrada ${maxTempEverRecorded.toFixed(1)}°C. Promedio: ${tempMaxStats.mean.toFixed(1)}°C`
+    };
+  } else if (predictedTempMax > 30) {
+    heatAlert = {
+      level: 'warning',
+      title: 'Temperatura alta',
+      description: `Temperatura máxima esperada: ${predictedTempMax.toFixed(1)}°C`,
+      data: `Histórico: Máxima registrada ${maxTempEverRecorded.toFixed(1)}°C. Promedio: ${tempMaxStats.mean.toFixed(1)}°C`
+    };
+  } else {
+    heatAlert = {
+      level: 'success',
+      title: 'Temperatura normal',
+      description: `Temperatura máxima esperada: ${predictedTempMax.toFixed(1)}°C`,
+      data: `Histórico: Promedio ${tempMaxStats.mean.toFixed(1)}°C (rango: ${minTempEverRecorded.toFixed(1)}°C - ${maxTempEverRecorded.toFixed(1)}°C)`
+    };
+  }
+
+  // Alerta de VIENTO - USAR PREDICCIÓN en lugar de promedio histórico
+  let windAlert = {};
+  if (predictedWindMax > 15) {
+    windAlert = {
+      level: 'danger',
+      title: 'Vientos muy fuertes',
+      description: `Velocidad máxima esperada: ${predictedWindMax.toFixed(1)} m/s (~${(predictedWindMax * 3.6).toFixed(0)} km/h)`,
+      data: `Histórico: Máxima registrada ${maxWindRecorded.toFixed(1)} m/s. Promedio: ${windMaxStats.mean.toFixed(1)} m/s`
+    };
+  } else if (predictedWindMax > 10) {
+    windAlert = {
+      level: 'warning',
+      title: 'Vientos moderados a fuertes',
+      description: `Velocidad máxima esperada: ${predictedWindMax.toFixed(1)} m/s (~${(predictedWindMax * 3.6).toFixed(0)} km/h)`,
+      data: `Histórico: Máxima registrada ${maxWindRecorded.toFixed(1)} m/s. Promedio: ${windMaxStats.mean.toFixed(1)} m/s`
+    };
+  } else {
+    windAlert = {
+      level: 'success',
+      title: 'Vientos normales',
+      description: `Velocidad máxima esperada: ${predictedWindMax.toFixed(1)} m/s (~${(predictedWindMax * 3.6).toFixed(0)} km/h)`,
+      data: `Histórico: Promedio ${windMaxStats.mean.toFixed(1)} m/s (rango: ${windMaxStats.min.toFixed(1)} - ${maxWindRecorded.toFixed(1)} m/s)`
+    };
+  }
+
+  console.log(`   ❄️  ${frostAlert.title} - ${frostAlert.description}`);
+  console.log(`   ⛈️  ${rainAlert.title} - ${rainAlert.description}`);
+  console.log(`   🌡️  ${heatAlert.title} - ${heatAlert.description}`);
+  console.log(`   💨 ${windAlert.title} - ${windAlert.description}`);
 
   return {
     trendPrediction: {
       tempMax: parseFloat(predictedTempMax.toFixed(2)),
       tempMin: parseFloat(predictedTempMin.toFixed(2)),
+      windMax: parseFloat(predictedWindMax.toFixed(2)),
+      humidity: parseFloat(predictedHumidity.toFixed(1)),
+      precipitation: parseFloat(predictedRain.toFixed(2)),
       year: currentYear,
       seasonalAdjustment: {
         season: seasonalAdj.name,
@@ -1163,7 +1316,10 @@ function calculateDailyProbabilities(data, targetDate, elevation = 0, lat = null
       },
       confidence: {
         tempMax: tempMaxConfidence,
-        tempMin: tempMinConfidence
+        tempMin: tempMinConfidence,
+        windMax: windConfidence,
+        humidity: humidityConfidence,
+        precipitation: rainConfidence
       },
       trend: {
         max: {
@@ -1175,6 +1331,21 @@ function calculateDailyProbabilities(data, targetDate, elevation = 0, lat = null
           slope: tempMinTrend.slope,
           rSquared: tempMinTrend.rSquared,
           confidence: tempMinTrend.confidence
+        },
+        windMax: {
+          slope: windMaxTrend.slope,
+          rSquared: windMaxTrend.rSquared,
+          confidence: windMaxTrend.confidence
+        },
+        humidity: {
+          slope: humidityTrend.slope,
+          rSquared: humidityTrend.rSquared,
+          confidence: humidityTrend.confidence
+        },
+        precipitation: {
+          slope: rainTrend.slope,
+          rSquared: rainTrend.rSquared,
+          confidence: rainTrend.confidence
         }
       }
     },
@@ -1245,24 +1416,34 @@ function calculateDailyProbabilities(data, targetDate, elevation = 0, lat = null
         }
       }
     },
-    riskScores: {
-      frost: {
-        score: parseFloat(frostRisk.toFixed(1)),
-        level: getRiskLevel(frostRisk),
-        recommendations: getRiskRecommendations('frost', frostRisk),
-        description: 'Riesgo de helada basado en temp mín, humedad y viento'
+    alerts: {
+      frost: frostAlert,
+      rain: rainAlert,
+      heat: heatAlert,
+      wind: windAlert
+    },
+    historicalData: {
+      precipitation: {
+        avg: parseFloat(rainStats.mean.toFixed(2)),
+        min: parseFloat(rainStats.min.toFixed(2)),
+        max: parseFloat(maxRainRecorded.toFixed(2)),
+        daysWithHeavyRain: daysWithHeavyRain,
+        totalDays: rainValues.length
       },
-      storm: {
-        score: parseFloat(stormRisk.toFixed(1)),
-        level: getRiskLevel(stormRisk),
-        recommendations: getRiskRecommendations('storm', stormRisk),
-        description: 'Riesgo de tormenta basado en lluvia, viento y humedad'
+      windMax: {
+        avg: parseFloat(windMaxStats.mean.toFixed(1)),
+        min: parseFloat(windMaxStats.min.toFixed(1)),
+        max: parseFloat(maxWindRecorded.toFixed(1)),
+        avgKmh: parseFloat((windMaxStats.mean * 3.6).toFixed(1))
       },
-      heatStress: {
-        score: parseFloat(heatStressRisk.toFixed(1)),
-        level: getRiskLevel(heatStressRisk),
-        recommendations: getRiskRecommendations('heat', heatStressRisk),
-        description: 'Riesgo de estrés térmico basado en temp máx, humedad y viento'
+      humidity: {
+        avg: parseFloat(humidityStats.mean.toFixed(1)),
+        min: parseFloat(humidityStats.min.toFixed(1)),
+        max: parseFloat(humidityStats.max.toFixed(1))
+      },
+      thermalAmplitude: {
+        avg: parseFloat((tempMaxStats.mean - tempMinStats.mean).toFixed(1)),
+        description: `Diferencia promedio entre temperatura máxima y mínima`
       }
     },
     elevationData: {

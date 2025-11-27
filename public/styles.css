@@ -426,8 +426,8 @@ body::after {
   font-style: italic;
 }
 
-/* Risk Section */
-.risk-section {
+/* Alerts Section */
+.alerts-section {
   margin-bottom: 30px;
   background: rgba(255, 255, 255, 0.95);
   border-radius: 16px;
@@ -436,43 +436,52 @@ body::after {
   border: 1px solid rgba(147, 197, 253, 0.1);
 }
 
-.risk-section h3 {
+.alerts-section h3 {
   font-size: 1.5rem;
   margin-bottom: 20px;
   color: #0f172a;
   font-weight: 700;
 }
 
-.risk-grid {
+.alerts-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 20px;
 }
 
-.risk-card {
+.alert-card {
   background: var(--card-bg);
   border-radius: 16px;
-  padding: 25px;
+  padding: 20px;
   box-shadow: var(--shadow-lg);
-  text-align: center;
-  border-top: 4px solid var(--border-color);
+  border-left: 6px solid var(--border-color);
   transition: transform 0.2s;
+  display: flex;
+  gap: 15px;
 }
 
-.risk-card:hover {
-  transform: translateY(-4px);
+.alert-card:hover {
+  transform: translateY(-2px);
 }
 
-.risk-card.risk-low {
-  border-top-color: var(--risk-low);
+.alert-card.alert-success {
+  border-left-color: var(--success-color);
+  background: rgba(16, 185, 129, 0.03);
 }
 
-.risk-card.risk-medium {
-  border-top-color: var(--risk-medium);
+.alert-card.alert-warning {
+  border-left-color: var(--warning-color);
+  background: rgba(245, 158, 11, 0.03);
 }
 
-.risk-card.risk-high {
-  border-top-color: var(--risk-high);
+.alert-card.alert-danger {
+  border-left-color: var(--danger-color);
+  background: rgba(239, 68, 68, 0.03);
+}
+
+.alert-card.alert-info {
+  border-left-color: var(--primary-color);
+  background: rgba(59, 130, 246, 0.03);
 }
 
 .risk-header {
@@ -552,28 +561,209 @@ body::after {
   color: var(--risk-high);
 }
 
-.risk-recommendations {
-  list-style: none;
-  text-align: left;
-  padding: 0;
+.alert-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
 }
 
-.risk-recommendations li {
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border-color);
+.alert-content {
+  flex: 1;
+}
+
+.alert-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-color);
+  margin-bottom: 8px;
+}
+
+.alert-description {
+  font-size: 0.95rem;
+  color: var(--text-color);
+  margin-bottom: 6px;
+}
+
+.alert-data {
+  font-size: 0.85rem;
   color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* Weather Data Section */
+.weather-data-section {
+  margin-bottom: 30px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  padding: 25px;
+  box-shadow: 0 0 20px rgba(147, 197, 253, 0.2);
+  border: 1px solid rgba(147, 197, 253, 0.1);
+}
+
+.weather-data-section h3 {
+  font-size: 1.5rem;
+  margin-bottom: 20px;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.weather-data-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+}
+
+.data-card {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border-color);
+  transition: transform 0.2s;
+}
+
+.data-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.data-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.data-icon {
+  font-size: 1.5rem;
+}
+
+.data-label {
   font-size: 0.9rem;
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
-.risk-recommendations li:last-child {
-  border-bottom: none;
-}
-
-.risk-recommendations li::before {
-  content: "✓ ";
+.data-value {
+  font-size: 1.8rem;
+  font-weight: 700;
   color: var(--primary-color);
-  font-weight: bold;
-  margin-right: 8px;
+  margin-bottom: 8px;
+}
+
+.data-detail {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* Simple Alerts */
+.simple-alerts {
+  margin-bottom: 20px;
+}
+
+.simple-alert {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 15px 20px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  box-shadow: var(--shadow);
+  border-left: 4px solid;
+}
+
+.simple-alert.alert-success {
+  border-left-color: var(--success-color);
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.simple-alert.alert-warning {
+  border-left-color: var(--warning-color);
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.simple-alert.alert-danger {
+  border-left-color: var(--danger-color);
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.simple-alert-icon {
+  font-size: 1.5rem;
+}
+
+.simple-alert-text {
+  font-size: 1rem;
+  color: var(--text-color);
+}
+
+.simple-alert-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.simple-alert-content strong {
+  font-size: 1rem;
+  color: var(--text-color);
+}
+
+.simple-alert-content span {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+/* Technical Section */
+.technical-section {
+  margin-bottom: 30px;
+}
+
+.technical-toggle {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.95);
+  border: 2px solid var(--border-color);
+  border-radius: 12px;
+  padding: 15px 20px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-color);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.3s;
+  box-shadow: var(--shadow);
+}
+
+.technical-toggle:hover {
+  background: rgba(255, 255, 255, 1);
+  border-color: var(--primary-color);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.technical-content {
+  margin-top: 20px;
+}
+
+.technical-content.hidden {
+  display: none;
+}
+
+.alerts-detailed {
+  margin-bottom: 30px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  padding: 25px;
+  box-shadow: 0 0 20px rgba(147, 197, 253, 0.2);
+  border: 1px solid rgba(147, 197, 253, 0.1);
+}
+
+.alerts-detailed h3 {
+  font-size: 1.5rem;
+  margin-bottom: 20px;
+  color: #0f172a;
+  font-weight: 700;
 }
 
 /* Stats Section */
@@ -595,8 +785,20 @@ body::after {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
+}
+
+@media (max-width: 1024px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .stat-card {
