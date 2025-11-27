@@ -847,6 +847,13 @@ body::after {
   margin-bottom: 30px;
   background: rgba(255, 255, 255, 0.95);
   border-radius: 16px;
+}
+
+.chart-subtitle {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin: -10px 0 20px 0;
+  text-align: center;
   padding: 25px;
   box-shadow: 0 0 20px rgba(147, 197, 253, 0.2);
   border: 1px solid rgba(147, 197, 253, 0.1);

@@ -318,56 +318,162 @@ function displayTemperatureStats(analysis) {
     `Diferencia entre máx y mín`;
 }
 
-// Display charts
+// Display charts - Gauge style showing current prediction vs historical range
 function displayCharts(analysis) {
-  // Conditions probabilities chart
   const condCtx = document.getElementById('conditions-chart').getContext('2d');
 
   if (conditionsChart) {
     conditionsChart.destroy();
   }
 
+  const trend = analysis.trendPrediction;
+  const tempMaxStats = analysis.temperature.max.statistics;
+  const tempMinStats = analysis.temperature.min.statistics;
+  const windStats = analysis.wind.max.statistics;
+  const humidityStats = analysis.humidity.statistics;
+  const rainStats = analysis.precipitation.statistics;
+
+  // Calcular posición en el rango (0-100%)
+  const calcPosition = (value, min, max) => {
+    if (max === min) return 50; // Si no hay rango, centrar
+    return ((value - min) / (max - min)) * 100;
+  };
+
+  // Determinar color según posición respecto al promedio
+  const getColor = (value, mean, min, max) => {
+    const deviation = ((value - mean) / mean) * 100;
+    if (Math.abs(deviation) < 10) return 'rgba(16, 185, 129, 0.8)'; // Verde - normal
+    if (value > mean) return 'rgba(251, 191, 36, 0.8)'; // Amarillo - por encima
+    return 'rgba(59, 130, 246, 0.8)'; // Azul - por debajo
+  };
+
+  const datasets = [
+    {
+      label: 'Temperatura Máxima',
+      data: [calcPosition(trend.tempMax, tempMaxStats.min, tempMaxStats.max)],
+      backgroundColor: getColor(trend.tempMax, tempMaxStats.mean, tempMaxStats.min, tempMaxStats.max),
+      borderWidth: 0,
+      display: true,
+      value: trend.tempMax,
+      unit: '°C',
+      min: tempMaxStats.min,
+      max: tempMaxStats.max,
+      mean: tempMaxStats.mean
+    },
+    {
+      label: 'Temperatura Mínima',
+      data: [calcPosition(trend.tempMin, tempMinStats.min, tempMinStats.max)],
+      backgroundColor: getColor(trend.tempMin, tempMinStats.mean, tempMinStats.min, tempMinStats.max),
+      borderWidth: 0,
+      value: trend.tempMin,
+      unit: '°C',
+      min: tempMinStats.min,
+      max: tempMinStats.max,
+      mean: tempMinStats.mean
+    },
+    {
+      label: 'Viento Máximo',
+      data: [calcPosition(trend.windMax, windStats.min, windStats.max)],
+      backgroundColor: getColor(trend.windMax, windStats.mean, windStats.min, windStats.max),
+      borderWidth: 0,
+      value: trend.windMax * 3.6, // Convertir a km/h
+      unit: 'km/h',
+      min: windStats.min * 3.6,
+      max: windStats.max * 3.6,
+      mean: windStats.mean * 3.6
+    },
+    {
+      label: 'Humedad',
+      data: [calcPosition(trend.humidity, humidityStats.min, humidityStats.max)],
+      backgroundColor: getColor(trend.humidity, humidityStats.mean, humidityStats.min, humidityStats.max),
+      borderWidth: 0,
+      value: trend.humidity,
+      unit: '%',
+      min: humidityStats.min,
+      max: humidityStats.max,
+      mean: humidityStats.mean
+    },
+    {
+      label: 'Precipitación',
+      data: [calcPosition(trend.precipitation, rainStats.min, Math.min(rainStats.max, 20))], // Cap max para visualización
+      backgroundColor: getColor(trend.precipitation, rainStats.mean, rainStats.min, rainStats.max),
+      borderWidth: 0,
+      value: trend.precipitation,
+      unit: 'mm',
+      min: rainStats.min,
+      max: Math.min(rainStats.max, 20),
+      mean: rainStats.mean
+    }
+  ];
+
   conditionsChart = new Chart(condCtx, {
-    type: 'doughnut',
+    type: 'bar',
     data: {
-      labels: [
-        `Muy caluroso (${analysis.temperature.conditions.veryHot.probability}%)`,
-        `Muy frío (${analysis.temperature.conditions.veryCold.probability}%)`,
-        `Muy ventoso (${analysis.wind.conditions.veryWindy.probability}%)`,
-        `Muy húmedo (${analysis.humidity.conditions.veryHumid.probability}%)`,
-        `Lluvia intensa (${analysis.precipitation.conditions.heavyRain.probability}%)`
-      ],
+      labels: datasets.map(d => d.label),
       datasets: [{
-        data: [
-          analysis.temperature.conditions.veryHot.probability,
-          analysis.temperature.conditions.veryCold.probability,
-          analysis.wind.conditions.veryWindy.probability,
-          analysis.humidity.conditions.veryHumid.probability,
-          analysis.precipitation.conditions.heavyRain.probability
-        ],
-        backgroundColor: [
-          'rgba(239, 68, 68, 0.7)',
-          'rgba(59, 130, 246, 0.7)',
-          'rgba(156, 163, 175, 0.7)',
-          'rgba(16, 185, 129, 0.7)',
-          'rgba(99, 102, 241, 0.7)'
-        ],
-        borderColor: [
-          'rgba(239, 68, 68, 1)',
-          'rgba(59, 130, 246, 1)',
-          'rgba(156, 163, 175, 1)',
-          'rgba(16, 185, 129, 1)',
-          'rgba(99, 102, 241, 1)'
-        ],
-        borderWidth: 1
+        data: datasets.map(d => d.data[0]),
+        backgroundColor: datasets.map(d => d.backgroundColor),
+        borderWidth: 0,
+        barThickness: 40
       }]
     },
     options: {
+      indexAxis: 'y', // Barras horizontales
       responsive: true,
       maintainAspectRatio: true,
+      scales: {
+        x: {
+          min: 0,
+          max: 100,
+          ticks: {
+            callback: function(value) {
+              if (value === 0) return 'Mín';
+              if (value === 50) return 'Promedio';
+              if (value === 100) return 'Máx';
+              return '';
+            }
+          },
+          grid: {
+            color: function(context) {
+              if (context.tick.value === 50) {
+                return 'rgba(0, 0, 0, 0.3)'; // Línea más oscura para el promedio
+              }
+              return 'rgba(0, 0, 0, 0.05)';
+            },
+            lineWidth: function(context) {
+              if (context.tick.value === 50) return 2;
+              return 1;
+            }
+          }
+        },
+        y: {
+          grid: {
+            display: false
+          }
+        }
+      },
       plugins: {
         legend: {
-          position: 'right',
+          display: false
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              const dataset = datasets[context.dataIndex];
+              const position = context.parsed.x;
+              let status = 'Normal';
+              if (position > 60) status = 'Por encima del promedio';
+              else if (position < 40) status = 'Por debajo del promedio';
+
+              return [
+                `Hoy: ${dataset.value.toFixed(1)}${dataset.unit}`,
+                `Mín histórico: ${dataset.min.toFixed(1)}${dataset.unit}`,
+                `Promedio: ${dataset.mean.toFixed(1)}${dataset.unit}`,
+                `Máx histórico: ${dataset.max.toFixed(1)}${dataset.unit}`,
+                `Estado: ${status}`
+              ];
+            }
+          }
         }
       }
     }
